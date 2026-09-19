@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import os
@@ -2006,6 +2007,118 @@ def admin_invite_list():
             }
             for r in rows
         ]
+    )
+
+
+def _pdf_text(value):
+    """Return text that can safely be used with PDF's built-in Helvetica font."""
+    return str(value or "").encode("cp1252", "replace").decode("latin-1")
+
+
+def _pdf_escape(value):
+    return _pdf_text(value).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _invite_codes_pdf(rows):
+    """Create a small, dependency-free PDF worksheet for unused invite codes."""
+    rows = list(rows)
+    per_page = 24
+    pages = [rows[i:i + per_page] for i in range(0, len(rows), per_page)] or [[]]
+    objects = []
+
+    def add_object(payload):
+        objects.append(payload)
+        return len(objects)
+
+    catalog_id = add_object(b"")
+    pages_id = add_object(b"")
+    font_id = add_object(
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+    )
+    page_ids = []
+    for page_number, page_rows in enumerate(pages, 1):
+        commands = [
+            "BT /F1 18 Tf 50 800 Td (Schüler_innen-Liste - Einladungscodes) Tj ET",
+            f"BT /F1 9 Tf 50 782 Td (Seite {page_number} von {len(pages)}) Tj ET",
+            "0.6 w 50 755 m 545 755 l S",
+            "BT /F1 10 Tf 55 763 Td (Nr.) Tj 85 0 Td (Einladungscode) Tj 145 0 Td (Schule / Klasse) Tj 170 0 Td (Name) Tj ET",
+        ]
+        y = 735
+        start_number = (page_number - 1) * per_page
+        for index, row in enumerate(page_rows, 1):
+            school_class = (row.get("school") or "-")
+            if row.get("class_name"):
+                school_class += " / " + row["class_name"]
+            commands.extend([
+                f"0.8 G 50 {y - 7} m 545 {y - 7} l S 0 G",
+                "BT /F1 10 Tf "
+                f"55 {y} Td ({start_number + index}) Tj 85 0 Td ({_pdf_escape(row.get('_id'))}) Tj "
+                f"145 0 Td ({_pdf_escape(school_class[:27])}) Tj 170 0 Td (__________________) Tj ET",
+            ])
+            y -= 28
+        if not page_rows:
+            commands.append("BT /F1 11 Tf 50 720 Td (Keine offenen Einladungscodes vorhanden.) Tj ET")
+        commands.append(
+            "BT /F1 8 Tf 50 45 Td "
+            "(Jeder Code ist nur einmal gültig. Registrierung: /einladung.html) Tj ET"
+        )
+        stream = "\n".join(commands).encode("latin-1")
+        content_id = add_object(
+            f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
+        )
+        page_id = add_object(
+            f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 595 842] "
+            f"/Resources << /Font << /F1 {font_id} 0 R >> >> /Contents {content_id} 0 R >>".encode("ascii")
+        )
+        page_ids.append(page_id)
+
+    objects[catalog_id - 1] = f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode("ascii")
+    kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
+    objects[pages_id - 1] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode("ascii")
+
+    output = io.BytesIO()
+    output.write(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for object_id, payload in enumerate(objects, 1):
+        offsets.append(output.tell())
+        output.write(f"{object_id} 0 obj\n".encode("ascii"))
+        output.write(payload)
+        output.write(b"\nendobj\n")
+    xref = output.tell()
+    output.write(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.write(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.write(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.write(
+        f"trailer\n<< /Size {len(objects) + 1} /Root {catalog_id} 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode("ascii")
+    )
+    return output.getvalue()
+
+
+@app.route("/api/admin/invite-codes.pdf", methods=["GET"])
+@admin_api
+def admin_invite_codes_pdf():
+    """Export all unused invite codes visible to the current admin as a PDF list."""
+    db = get_db()
+    flt = {"used_at": None}
+    if not _has_full_read_access():
+        flt["school"] = admin_school(db)
+        if session.get("role") == "teacher":
+            teacher_class = teacher_class_for_session(db)
+            if not teacher_class:
+                rows = []
+            else:
+                flt["class_name"] = teacher_class
+                rows = list(db.invite_codes.find(flt).sort("class_name", 1))
+        else:
+            rows = list(db.invite_codes.find(flt).sort("class_name", 1))
+    else:
+        rows = list(db.invite_codes.find(flt).sort("class_name", 1))
+    filename = f"schueler-innen-liste-{utcnow().date().isoformat()}.pdf"
+    return Response(
+        _invite_codes_pdf(rows),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

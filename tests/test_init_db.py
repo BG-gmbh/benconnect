@@ -108,3 +108,27 @@ def test_delete_chat_subject_data_clears_matching_subjects():
     app_module.delete_chat_subject_data(db, "german")
 
     assert any("german" in str(filt) for filt in deleted.get("FakeCollection", []))
+
+
+def test_invite_codes_pdf_is_valid_and_contains_codes_on_multiple_pages():
+    rows = [
+        {"_id": f"code-{index:02d}", "school": "Testschule", "class_name": "1b"}
+        for index in range(25)
+    ]
+
+    payload = app_module._invite_codes_pdf(rows)
+
+    assert payload.startswith(b"%PDF-1.4")
+    assert payload.endswith(b"%%EOF\n")
+    assert b"code-00" in payload
+    assert b"code-24" in payload
+    assert b"/Count 2" in payload
+
+
+def test_invite_codes_pdf_escapes_pdf_control_characters():
+    payload = app_module._invite_codes_pdf([
+        {"_id": r"abc(123)\\", "school": "Schule (Nord)", "class_name": "1b"}
+    ])
+
+    assert b"abc\\(123\\)" in payload
+    assert b"Schule \\(Nord\\) / 1b" in payload

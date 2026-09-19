@@ -169,7 +169,10 @@
         <p class="field-hint">0 bedeutet unbegrenzt. Pro Schule zählen alle Nutzerkonten und alle offenen Codes zusammen. Admin- und Lehrer-Codes verwenden denselben Pool.</p>
         <p><button type="submit" class="btn btn-secondary">Limits speichern</button></p>
       </form>
-      <p><button type="button" class="btn admin-write-action" id="btn-new-code">Neuen Code erzeugen</button></p>
+      <p class="actions">
+        <button type="button" class="btn admin-write-action" id="btn-new-code">Neuen Code erzeugen</button>
+        <a class="btn btn-secondary" href="/api/admin/invite-codes.pdf" download>Codes als PDF exportieren</a>
+      </p>
       <p class="muted" id="new-code-out" aria-live="polite"></p>
       <h3 class="subsection-title">Ungenutzte Codes</h3>
       <ul id="code-list" class="code-list"></ul>
