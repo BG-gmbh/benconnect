@@ -48,6 +48,8 @@ a:hover {
 }
 
 .logo {
+  display: inline-flex;
+  align-items: center;
   font-weight: 700;
   color: var(--text);
 }
@@ -55,6 +57,14 @@ a:hover {
 .logo:hover {
   text-decoration: none;
   color: var(--accent);
+}
+
+.brand-logo {
+  display: block;
+  width: 4rem;
+  height: 4rem;
+  object-fit: contain;
+  border-radius: 10px;
 }
 
 .site-header nav {

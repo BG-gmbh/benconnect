@@ -1027,7 +1027,22 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 72,
-        title: const Text('benconnect'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                'docs/assets/benconnect-logo.jpeg',
+                width: 48,
+                height: 48,
+                fit: BoxFit.contain,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text('benconnect'),
+          ],
+        ),
         actions: [
           const LanguageMenuButton(),
           UserAvatar(user: user!, radius: 22),
@@ -1162,7 +1177,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('benconnect'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                'docs/assets/benconnect-logo.jpeg',
+                width: 48,
+                height: 48,
+                fit: BoxFit.contain,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text('benconnect'),
+          ],
+        ),
         actions: const [LanguageMenuButton()],
       ),
       body: Center(
