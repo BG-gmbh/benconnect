@@ -10,7 +10,7 @@ services:
     # MONGODB_URI faellt die App auf einen lokalen In-Process-Store zurueck –
     # die Seite laeuft dann, die Daten sind aber nicht persistent.
     # Custom Domains (Render-Dashboard -> Settings -> Custom Domains):
-    #   group-ly.tech, www.group-ly.tech
+    #   benconnect.de, www.benconnect.de
     # Ein einzelner Service liefert Frontend (flutter_app/docs) und API unter
     # derselben Origin aus -> kein Split-Origin, keine Cross-Site-Cookies noetig.
     envVars:

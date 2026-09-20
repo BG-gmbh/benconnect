@@ -5,7 +5,7 @@ Dashboard, Chat, Admin, Laden, Datenschutz/Impressum. Damit Konten und Passwört
 läuft dazu ein **Python-Server** (`app.py`), der die Seiten ausliefert und Formulare, Session und
 Datenbank übernimmt — Frontend und API laufen als **ein Prozess auf einem Origin**.
 
-Live im Einsatz unter **group-ly.tech**, gehostet auf **Render** (siehe [`DEPLOYMENT.md`](DEPLOYMENT.md)
+Live im Einsatz unter **benconnect.de**, gehostet auf **Render** (siehe [`DEPLOYMENT.md`](DEPLOYMENT.md)
 für Domain-/Deploy-Details). Datenbank ist **MongoDB Atlas**; ohne erreichbares `MONGODB_URI` läuft der
 Server lokal automatisch gegen einen In-Memory-Fallback-Store (siehe Abschnitt „Datenbank" unten) — so
 lässt sich der Server auch offline/lokal starten, ohne einen echten Atlas-Zugang zu brauchen.
@@ -58,7 +58,7 @@ Ohne `MONGODB_URI` in `.env` läuft der Server automatisch gegen den lokalen In-
 ## Native Flutter-App (optional, separat vom Produktions-Frontend)
 
 `flutter_app/lib/` enthält zusätzlich eine native Flutter-App (Android/iOS/Desktop), die dieselbe API
-anspricht. Das ist **nicht** dasselbe wie `flutter_app/docs/` — die live auf group-ly.tech laufende
+anspricht. Das ist **nicht** dasselbe wie `flutter_app/docs/` — die live auf benconnect.de laufende
 Seite ist die statische HTML/JS-Variante oben, nicht dieser native Client.
 
 Zuerst Backend starten:
@@ -93,7 +93,7 @@ Echtes Handy im gleichen WLAN:
 cd lerngruppen-finder/flutter_app
 flutter pub get
 # Fuer ein echtes Geraet nur mit einer HTTPS-Adresse starten:
-flutter run --dart-define=API_BASE_URL=https://group-ly.tech
+flutter run --dart-define=API_BASE_URL=https://benconnect.de
 ```
 
 Native Plattformordner ergänzen, falls Flutter sie braucht:

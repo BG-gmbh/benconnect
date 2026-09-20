@@ -19,7 +19,7 @@ String _defaultApiBaseUrl() {
   if (kIsWeb) {
     return Uri.base.origin;
   }
-  return 'https://group-ly.tech';
+  return 'https://benconnect.de';
 }
 
 void _validateApiBaseUrl(String value) {

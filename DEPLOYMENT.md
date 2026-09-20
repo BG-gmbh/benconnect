@@ -1,7 +1,7 @@
 # Deployment Guide
 
 ```
-group-ly.tech, www.group-ly.tech, api.group-ly.tech (optional alias)
+benconnect.de, www.benconnect.de
     -> Render (single Docker service: gunicorn/Flask)
         - serves the static frontend (flutter_app/docs)
         - serves the JSON API
@@ -61,16 +61,14 @@ Render auto-deploys on push (`autoDeploy: true`). The optional
 ### Custom domains
 
 In the Render dashboard → service → Settings → Custom Domains, add:
-- `group-ly.tech`
-- `www.group-ly.tech`
-- `api.group-ly.tech` (optional — only if something still hardcodes the old
-  API subdomain; it resolves to the exact same service)
+- `benconnect.de`
+- `www.benconnect.de`
 
 For each domain Render shows the DNS record to create. At your DNS provider
-for `group-ly.tech`:
-- Apex (`group-ly.tech`): Render will give you either an A record (their
+for `benconnect.de`:
+- Apex (`benconnect.de`): Render will give you either an A record (their
   anycast IP) or ask you to use an ALIAS/ANAME if your DNS host supports it.
-- `www` and `api`: CNAME to the hostname Render gives you (typically
+- `www`: CNAME to the hostname Render gives you (typically
   `<service>.onrender.com`).
 
 Wait for each domain to show "Verified" in Render (DNS propagation + automatic
