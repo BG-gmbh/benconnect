@@ -66,7 +66,8 @@ def _make_mongo_client(uri):
         parsed_uri = urlparse(uri)
         local_insecure = (
             parsed_uri.scheme == "mongodb"
-            and (parsed_uri.hostname or "").lower() in {"localhost", "127.0.0.1"}
+            and (parsed_uri.hostname or "").lower()
+            in {"localhost", "127.0.0.1", "mongo"}
             and os.environ.get("MONGODB_ALLOW_INSECURE_LOCAL", "").lower()
             in {"1", "true", "yes"}
         )
