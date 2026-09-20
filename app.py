@@ -1506,9 +1506,9 @@ def admin_mail_test():
         return jsonify(error="invalid_email"), 400
     ok, err = send_smtp_mail(
         [recipient],
-        "Lerngruppen-Finder: Test-Mail",
+        "benconnect: Test-Mail",
         (
-            "Das ist eine Test-Mail vom Lerngruppen-Finder.\n\n"
+            "Das ist eine Test-Mail von benconnect.\n\n"
             "Wenn diese Nachricht angekommen ist, funktioniert der Mailserver.\n"
         ),
     )

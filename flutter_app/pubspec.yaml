@@ -1,5 +1,5 @@
 name: lerngruppen_finder
-description: Flutter client for the Lerngruppen Finder backend.
+description: Flutter client for the benconnect backend.
 publish_to: "none"
 version: 0.1.0+1
 

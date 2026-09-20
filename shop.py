@@ -186,7 +186,7 @@ def _notify_teachers_laden(
         f"Artikel: {item_title}\n"
         f"Punkte: {points_spent}\n"
         f"Zeitpunkt: {created_at}\n\n"
-        f"(Automatische Nachricht vom Lerngruppen-Finder.)\n"
+        f"(Automatische Nachricht von benconnect.)\n"
     )
     ok, err = send_smtp_mail(emails, subject, body)
     if not ok:

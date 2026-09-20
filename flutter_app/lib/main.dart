@@ -53,7 +53,7 @@ class LernApp extends StatelessWidget {
       builder: (context, languageCode, _) => LanguageScope(
         code: languageCode,
         child: MaterialApp(
-          title: 'lerngruppen finder',
+          title: 'benconnect',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
@@ -1027,7 +1027,7 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 72,
-        title: const Text('lerngruppen finder'),
+        title: const Text('benconnect'),
         actions: [
           const LanguageMenuButton(),
           UserAvatar(user: user!, radius: 22),
@@ -1162,7 +1162,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('lerngruppen finder'),
+        title: const Text('benconnect'),
         actions: const [LanguageMenuButton()],
       ),
       body: Center(
