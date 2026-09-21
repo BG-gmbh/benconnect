@@ -122,7 +122,17 @@ def test_invite_codes_pdf_is_valid_and_contains_codes_on_multiple_pages():
     assert payload.endswith(b"%%EOF\n")
     assert b"code-00" in payload
     assert b"code-24" in payload
-    assert b"/Count 2" in payload
+    assert b"/Count 3" in payload
+    assert b"[4 3] 0 d" in payload
+    assert payload.count(b"495 68 re S") == 25
+    assert payload.count(b"% QR ") == 25
+    assert payload.count(b"Webseite: benconnect.cyou") == 25
+
+
+def test_invite_registration_url_encodes_the_invite_code():
+    assert app_module._invite_registration_url("Code A&B") == (
+        "https://benconnect.cyou/einladung.html?code=Code+A%26B"
+    )
 
 
 def test_invite_codes_pdf_escapes_pdf_control_characters():

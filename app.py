@@ -12,6 +12,7 @@ from urllib.parse import urlencode, urlparse
 
 from dotenv import load_dotenv
 from flask import Flask, Response, g, jsonify, redirect, request, send_from_directory, session
+import segno
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -2057,10 +2058,38 @@ def _pdf_escape(value):
     return _pdf_text(value).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
+def _qr_pdf_commands(value, x, y, size):
+    """Render a QR code as vector rectangles in a PDF content stream."""
+    matrix = tuple(tuple(row) for row in segno.make(value, error="m", micro=False).matrix)
+    border = 4
+    scale = size / (len(matrix) + 2 * border)
+    rectangles = []
+    for row_index, row in enumerate(matrix):
+        column = 0
+        while column < len(row):
+            if not row[column]:
+                column += 1
+                continue
+            run_start = column
+            while column < len(row) and row[column]:
+                column += 1
+            rect_x = x + (border + run_start) * scale
+            rect_y = y + size - (border + row_index + 1) * scale
+            rect_width = (column - run_start) * scale
+            rectangles.append(
+                f"{rect_x:.3f} {rect_y:.3f} {rect_width:.3f} {scale:.3f} re"
+            )
+    return "q 0 g " + " ".join(rectangles) + " f Q"
+
+
+def _invite_registration_url(code):
+    return "https://benconnect.cyou/einladung.html?" + urlencode({"code": str(code or "")})
+
+
 def _invite_codes_pdf(rows):
-    """Create a small, dependency-free PDF worksheet for unused invite codes."""
+    """Create a printable PDF worksheet for unused invite codes."""
     rows = list(rows)
-    per_page = 24
+    per_page = 9
     pages = [rows[i:i + per_page] for i in range(0, len(rows), per_page)] or [[]]
     objects = []
 
@@ -2078,27 +2107,36 @@ def _invite_codes_pdf(rows):
         commands = [
             "BT /F1 18 Tf 50 800 Td (Schüler_innen-Liste - Einladungscodes) Tj ET",
             f"BT /F1 9 Tf 50 782 Td (Seite {page_number} von {len(pages)}) Tj ET",
-            "0.6 w 50 755 m 545 755 l S",
-            "BT /F1 10 Tf 55 763 Td (Nr.) Tj 85 0 Td (Einladungscode) Tj 145 0 Td (Schule / Klasse) Tj 170 0 Td (Name) Tj ET",
+            "0.6 w 50 757 m 545 757 l S",
+            "BT /F1 10 Tf 55 765 Td (Datensatz) Tj 426 0 Td (QR-Code) Tj ET",
         ]
-        y = 735
+        row_top = 748
         start_number = (page_number - 1) * per_page
         for index, row in enumerate(page_rows, 1):
             school_class = (row.get("school") or "-")
             if row.get("class_name"):
                 school_class += " / " + row["class_name"]
+            code = str(row.get("_id") or "")
+            registration_url = _invite_registration_url(code)
+            box_bottom = row_top - 68
             commands.extend([
-                f"0.8 G 50 {y - 7} m 545 {y - 7} l S 0 G",
+                f"q [4 3] 0 d 0.8 G 50 {box_bottom} 495 68 re S Q",
                 "BT /F1 10 Tf "
-                f"55 {y} Td ({start_number + index}) Tj 85 0 Td ({_pdf_escape(row.get('_id'))}) Tj "
-                f"145 0 Td ({_pdf_escape(school_class[:27])}) Tj 170 0 Td (__________________) Tj ET",
+                f"55 {row_top - 15} Td (Nr. {start_number + index}) Tj "
+                f"55 0 Td (Einladungscode: {_pdf_escape(code)}) Tj ET",
+                f"BT /F1 10 Tf 55 {row_top - 31} Td "
+                f"(Schule / Klasse: {_pdf_escape(school_class[:48])}) Tj ET",
+                f"BT /F1 10 Tf 55 {row_top - 47} Td (Name: ________________________________) Tj ET",
+                f"BT /F1 8 Tf 55 {row_top - 61} Td (Webseite: benconnect.cyou) Tj ET",
+                f"% QR {start_number + index}",
+                _qr_pdf_commands(registration_url, 484, box_bottom + 7, 54),
             ])
-            y -= 28
+            row_top -= 72
         if not page_rows:
             commands.append("BT /F1 11 Tf 50 720 Td (Keine offenen Einladungscodes vorhanden.) Tj ET")
         commands.append(
             "BT /F1 8 Tf 50 45 Td "
-            "(Jeder Code ist nur einmal gültig. Registrierung: /einladung.html) Tj ET"
+            "(Jeder Code ist nur einmal gültig. QR-Code scannen oder Einladungscode eingeben.) Tj ET"
         )
         stream = "\n".join(commands).encode("latin-1")
         content_id = add_object(

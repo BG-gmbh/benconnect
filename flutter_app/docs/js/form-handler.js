@@ -1,5 +1,12 @@
 (function () {
   var supportedActions = ["/login", "/register", "/setup", "/profile", "/logout", "/einladung"];
+
+  var invitationInput = document.querySelector('form[action="/einladung"] input[name="code"]');
+  var invitationCode = new URLSearchParams(window.location.search).get("code");
+  if (invitationInput && invitationCode && !invitationInput.value) {
+    invitationInput.value = invitationCode;
+  }
+
   function normalizeAction(action) {
     if (!action) return "";
     var text = String(action).trim();
