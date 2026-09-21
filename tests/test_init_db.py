@@ -144,6 +144,74 @@ def test_invite_codes_pdf_escapes_pdf_control_characters():
     assert b"Schule \\(Nord\\) / 1b" in payload
 
 
+def test_admin_can_create_multiple_invite_codes_at_once():
+    inserted = []
+
+    class InviteCodes:
+        def insert_one(self, document):
+            inserted.append(document)
+
+    fake_db = SimpleNamespace(
+        invite_codes=InviteCodes(),
+        schools=SimpleNamespace(update_one=lambda *args, **kwargs: None),
+    )
+
+    with app_module.app.test_request_context(
+        "/api/admin/invite-codes",
+        method="POST",
+        json={"school": "Testschule", "class_name": "8a", "role": "user", "count": 5},
+    ):
+        app_module.session["user_id"] = str(ObjectId())
+        app_module.session["role"] = "dev"
+        with patch.object(app_module, "get_db", return_value=fake_db), \
+             patch.object(app_module, "invite_code_quota_payload", return_value={
+                 "school": "Testschule", "limit": 0, "users": 0,
+                 "codes": 0, "active": 0, "remaining": None,
+             }):
+            response = app_module.admin_invite_create.__wrapped__()
+
+    payload = response.get_json()
+    assert response.status_code == 200
+    assert payload["count"] == 5
+    assert len(payload["codes"]) == 5
+    assert len(inserted) == 5
+
+
+def test_admin_invite_batch_rejects_invalid_count():
+    with app_module.app.test_request_context(
+        "/api/admin/invite-codes", method="POST", json={"count": 101}
+    ):
+        response, status = app_module.admin_invite_create.__wrapped__()
+
+    assert status == 400
+    assert response.get_json()["error"] == "invalid_count"
+
+
+def test_admin_invite_batch_respects_remaining_license_count():
+    fake_db = SimpleNamespace()
+    quota = {
+        "school": "Testschule", "limit": 20, "users": 15,
+        "codes": 2, "active": 17, "remaining": 3,
+    }
+
+    with app_module.app.test_request_context(
+        "/api/admin/invite-codes",
+        method="POST",
+        json={"school": "Testschule", "role": "user", "count": 4},
+    ):
+        app_module.session["user_id"] = str(ObjectId())
+        app_module.session["role"] = "dev"
+        with patch.object(app_module, "get_db", return_value=fake_db), \
+             patch.object(app_module, "invite_code_quota_payload", return_value=quota):
+            response, status = app_module.admin_invite_create.__wrapped__()
+
+    payload = response.get_json()
+    assert status == 429
+    assert payload["error"] == "code_limit"
+    assert payload["requested"] == 4
+    assert payload["remaining"] == 3
+
+
 def test_learning_place_update_is_limited_to_owner():
     user_id = ObjectId()
     place_id = ObjectId()

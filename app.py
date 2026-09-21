@@ -2248,6 +2248,12 @@ def admin_invite_create():
     school = (data.get("school") or "").strip()
     class_name = normalize_class_name(data.get("class_name"))
     role = (data.get("role") or "user").strip()
+    try:
+        count = int(data.get("count", 1))
+    except (TypeError, ValueError):
+        return jsonify(error="invalid_count", min=1, max=100), 400
+    if count < 1 or count > 100:
+        return jsonify(error="invalid_count", min=1, max=100), 400
     if role not in ROLES:
         return jsonify(error="invalid_role"), 400
     if class_name is None:
@@ -2266,8 +2272,8 @@ def admin_invite_create():
                 return jsonify(error="forbidden"), 403
             class_name = teacher_class
     quota = invite_code_quota_payload(db, school)
-    if quota["limit"] > 0 and quota["active"] >= quota["limit"]:
-        return jsonify(error="code_limit", **quota), 429
+    if quota["limit"] > 0 and count > quota["remaining"]:
+        return jsonify(error="code_limit", requested=count, **quota), 429
     class_name = class_name_for_role(role, class_name)
     if class_name is None:
         return jsonify(error="invalid_class"), 400
@@ -2281,29 +2287,38 @@ def admin_invite_create():
         )
     uid = session["user_id"]
     creator_role = session.get("role", "user")
-    for _ in range(12):
-        code = secrets.token_hex(6)
-        try:
-            db.invite_codes.insert_one({
-                "_id": code,
-                "created_by": oid(uid),
-                "created_by_role": creator_role,
-                "school": school,
-                "class_name": class_name,
-                "role": role,
-                "created_at": utcnow(),
-                "used_at": None,
-            })
-            return jsonify(
-                code=code,
-                created_by=uid,
-                school=school,
-                class_name=class_name,
-                role=role,
-            )
-        except DuplicateKeyError:
-            continue
-    return jsonify(error="generate"), 500
+    codes = []
+    for _ in range(count):
+        for _ in range(12):
+            code = secrets.token_hex(6)
+            try:
+                db.invite_codes.insert_one({
+                    "_id": code,
+                    "created_by": oid(uid),
+                    "created_by_role": creator_role,
+                    "school": school,
+                    "class_name": class_name,
+                    "role": role,
+                    "created_at": utcnow(),
+                    "used_at": None,
+                })
+                codes.append(code)
+                break
+            except DuplicateKeyError:
+                continue
+        else:
+            if codes:
+                db.invite_codes.delete_many({"_id": {"$in": codes}})
+            return jsonify(error="generate"), 500
+    return jsonify(
+        code=codes[0],
+        codes=codes,
+        count=len(codes),
+        created_by=uid,
+        school=school,
+        class_name=class_name,
+        role=role,
+    )
 
 
 @app.route("/api/admin/invite-codes/<code>", methods=["DELETE"])

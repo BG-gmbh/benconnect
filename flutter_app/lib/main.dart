@@ -455,11 +455,13 @@ const _baseText = {
   'user_banned': 'Nutzer gesperrt',
   'user_unbanned': 'Nutzer entsperrt',
   'no_users': 'Keine Nutzer gefunden.',
-  'create_code': 'Code erstellen',
+  'create_code': 'Codes erstellen',
+  'code_count': 'Anzahl Codes',
   'copy_code': 'Code kopieren',
   'delete_code': 'Code löschen',
   'code_copied': 'Code kopiert',
   'code_created': 'Code erstellt',
+  'codes_created': 'Codes erstellt',
   'code_deleted': 'Code gelöscht',
   'delete_invite_code_q': 'Einladungscode löschen?',
   'delete_invite_code_msg': 'wird gelöscht und kann danach nicht mehr benutzt werden.',
@@ -3674,7 +3676,11 @@ class _AdminScreenState extends State<AdminScreen> {
     await _loadSchools();
     final result = await _inviteCodeDialog();
     if (result == null) return;
-    await _run(tx(context, 'code_created'), () async {
+    final count = result['count'] as int? ?? 1;
+    final success = count == 1
+        ? tx(context, 'code_created')
+        : '$count ${tx(context, 'codes_created')}';
+    await _run(success, () async {
       await widget.api.postJson('/api/admin/invite-codes', result);
     });
   }
@@ -4184,6 +4190,7 @@ class _AdminScreenState extends State<AdminScreen> {
         : _defaultShopSchool();
     _ensureKnownSchool(school);
     var role = 'user';
+    final countController = TextEditingController(text: '1');
     final roles = widget.isDev
         ? const ['user', 'teacher', 'admin', 'dev']
         : widget.adminRole == 'admin'
@@ -4213,6 +4220,16 @@ class _AdminScreenState extends State<AdminScreen> {
                   if (value != null) setDialogState(() => role = value);
                 },
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: countController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  labelText: tx(context, 'code_count'),
+                  helperText: '1-100',
+                ),
+              ),
             ],
           ),
           actions: [
@@ -4221,16 +4238,22 @@ class _AdminScreenState extends State<AdminScreen> {
               child: Text(tx(context, 'cancel')),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, {
-                'school': school,
-                'role': role,
-              }),
+              onPressed: () {
+                final count = int.tryParse(countController.text) ?? 0;
+                if (count < 1 || count > 100) return;
+                Navigator.pop(context, {
+                  'school': school,
+                  'role': role,
+                  'count': count,
+                });
+              },
               child: Text(tx(context, 'create')),
             ),
           ],
         ),
       ),
     );
+    countController.dispose();
     return result;
   }
 

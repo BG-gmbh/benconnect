@@ -170,7 +170,7 @@
         <p><button type="submit" class="btn btn-secondary">Limits speichern</button></p>
       </form>
       <p class="actions">
-        <button type="button" class="btn admin-write-action" id="btn-new-code">Neuen Code erzeugen</button>
+        <button type="button" class="btn admin-write-action" id="btn-new-code">Codes erzeugen</button>
         <a class="btn btn-secondary" href="/api/admin/invite-codes.pdf" download>Codes als PDF exportieren</a>
       </p>
       <p class="muted" id="new-code-out" aria-live="polite"></p>
@@ -452,7 +452,7 @@
 
   <div id="new-code-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="new-code-modal-title">
     <div class="modal-card">
-      <h2 id="new-code-modal-title" class="modal-title">Neuen Code erzeugen</h2>
+      <h2 id="new-code-modal-title" class="modal-title">Einladungscodes erzeugen</h2>
 
       <div class="modal-field">
         <label for="new-code-school">Schule</label>
@@ -467,6 +467,11 @@
       <div class="modal-field">
         <label for="new-code-role">Rolle</label>
         <select id="new-code-role" class="modal-input"></select>
+      </div>
+
+      <div class="modal-field">
+        <label for="new-code-count">Anzahl</label>
+        <input id="new-code-count" class="modal-input" type="number" min="1" max="100" step="1" value="1">
       </div>
 
       <p class="muted modal-error" id="new-code-modal-error" role="alert"></p>
@@ -1129,6 +1134,7 @@
         if (!document.getElementById("new-code-class").readOnly) {
           document.getElementById("new-code-class").value = "";
         }
+        document.getElementById("new-code-count").value = "1";
         newCodeModal.classList.remove("hidden");
       });
 
@@ -1142,15 +1148,20 @@
         var school = (document.getElementById("new-code-school").value || "").trim();
         var className = (document.getElementById("new-code-class").value || "").trim();
         var role = document.getElementById("new-code-role").value || "user";
+        var count = Number(document.getElementById("new-code-count").value || 1);
         if (className.length > 20) {
           newCodeModalError.textContent = "Die Klasse darf höchstens 20 Zeichen lang sein.";
+          return;
+        }
+        if (!Number.isInteger(count) || count < 1 || count > 100) {
+          newCodeModalError.textContent = "Bitte eine Anzahl zwischen 1 und 100 eingeben.";
           return;
         }
         fetch("/api/admin/invite-codes", {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ school: school, class_name: className, role: role }),
+          body: JSON.stringify({ school: school, class_name: className, role: role, count: count }),
         })
           .then(function (r) {
             return r.json().then(function (d) {
@@ -1169,7 +1180,9 @@
                   Number(x.d.users || 0) +
                   " Nutzer, " +
                   Number(x.d.codes || 0) +
-                  " offene Codes).";
+                  " offene Codes). Verfügbar: " +
+                  Number(x.d.remaining || 0) +
+                  ".";
               } else if (x.d && x.d.error === "forbidden") {
                 newCodeModalError.textContent = "Diese Rolle darfst du nicht für Einladungscodes vergeben.";
               } else {
@@ -1178,15 +1191,10 @@
               return;
             }
             newCodeModal.classList.add("hidden");
-            out.textContent =
-              "Neuer Code (einmal kopieren): " +
-              x.d.code +
-              " · " +
-              (x.d.school || "keine Schule") +
-              " · " +
-              (x.d.class_name || "keine Klasse") +
-              " · " +
-              (x.d.role || "user");
+            var createdCount = Number(x.d.count || 1);
+            out.textContent = createdCount === 1
+              ? "Neuer Code (einmal kopieren): " + x.d.code
+              : createdCount + " neue Codes wurden erzeugt. Du kannst sie jetzt als PDF exportieren.";
             loadCodes();
             loadInviteCodeLimits(x.d.school || "");
           });
