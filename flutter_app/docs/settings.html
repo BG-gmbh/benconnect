@@ -34,7 +34,8 @@
       <h1>Einstellungen</h1>
       <p class="field-hint">Pro · Mittel · Noob. Passwort unten nur ausfüllen, wenn du es ändern willst. Änderungen mit „Speichern“ übernehmen.</p>
 
-      <form method="post" action="/profile" class="stack-form" enctype="multipart/form-data">
+      <form id="settings-form" method="post" action="/profile" class="stack-form" enctype="multipart/form-data">
+        <input id="level-quiz-answers" name="level_quiz_answers" type="hidden" value="{}">
         <fieldset class="subject-levels subject-levels-plain">
           <legend>Profil</legend>
           <div class="avatar-editor">
@@ -177,11 +178,36 @@
       </div>
     </section>
   </main>
+
+  <div id="settings-level-quiz" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="settings-level-quiz-title">
+    <div class="modal-card">
+      <h2 id="settings-level-quiz-title" class="modal-title">Neue Fach-Stufe bestätigen</h2>
+      <p class="field-hint modal-hint">Du hast eine Fach-Stufe erhöht. Beantworte dafür pro geändertem Fach 5 Fragen.</p>
+      <form id="settings-level-quiz-form" autocomplete="off">
+        <div id="settings-level-quiz-body"></div>
+        <p id="settings-level-quiz-error" class="field-hint modal-hint" style="color:#ef476f;display:none;"></p>
+        <div class="modal-actions">
+          <button id="settings-level-quiz-cancel" type="button" class="btn btn-ghost">Abbrechen</button>
+          <button type="submit" class="btn">Antworten speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
   <script src="/js/config.js"></script>
   <script src="/js/flash.js"></script>
   <script src="/js/school-logo.js"></script>
   <script src="/js/must-change-password.js"></script>
   <script>
+    var SETTINGS_SUBJECTS = [
+      ["german", "Deutsch"], ["math", "Mathe"], ["english", "Englisch"],
+      ["biology", "Biologie"], ["pgw", "PGW"], ["spanish", "Spanisch"], ["art", "Kunst"],
+    ];
+    var LEVEL_RANK = { noob: 0, medium: 1, pro: 2 };
+    var originalLevels = {};
+    var pendingQuizSubjects = [];
+    var pendingQuizQuestions = {};
+    var allowSettingsSubmit = false;
+
     function setRadios(data) {
       [
         ["level_german", data.level_german],
@@ -197,6 +223,77 @@
         var el = document.querySelector('input[name="' + name + '"][value="' + val + '"]');
         if (el) el.checked = true;
       });
+      SETTINGS_SUBJECTS.forEach(function (pair) {
+        originalLevels[pair[0]] = data["level_" + pair[0]] || "noob";
+      });
+    }
+
+    function selectedSettingsLevels() {
+      var levels = {};
+      SETTINGS_SUBJECTS.forEach(function (pair) {
+        var selected = document.querySelector('input[name="level_' + pair[0] + '"]:checked');
+        levels[pair[0]] = selected ? selected.value : "noob";
+      });
+      return levels;
+    }
+
+    function raisedSettingsSubjects() {
+      var levels = selectedSettingsLevels();
+      return SETTINGS_SUBJECTS.map(function (pair) { return pair[0]; }).filter(function (key) {
+        return LEVEL_RANK[levels[key]] > LEVEL_RANK[originalLevels[key] || "noob"];
+      });
+    }
+
+    function renderSettingsLevelQuiz(subjects, questions) {
+      var body = document.getElementById("settings-level-quiz-body");
+      body.innerHTML = "";
+      subjects.forEach(function (key) {
+        var subject = SETTINGS_SUBJECTS.filter(function (pair) { return pair[0] === key; })[0];
+        var fieldset = document.createElement("fieldset");
+        fieldset.className = "subject-levels subject-levels-plain";
+        var legend = document.createElement("legend");
+        legend.textContent = subject[1];
+        fieldset.appendChild(legend);
+        (questions[key] || []).forEach(function (item, questionIndex) {
+          var row = document.createElement("div");
+          row.className = "modal-field";
+          var question = document.createElement("p");
+          question.className = "field-hint";
+          question.textContent = item.q;
+          row.appendChild(question);
+          var choices = document.createElement("div");
+          choices.className = "radio-row";
+          item.choices.forEach(function (choice, choiceIndex) {
+            var label = document.createElement("label");
+            label.className = "radio-pill";
+            var input = document.createElement("input");
+            input.type = "radio";
+            input.name = "settings_quiz_" + key + "_" + questionIndex;
+            input.value = choiceIndex;
+            input.required = true;
+            var text = document.createElement("span");
+            text.textContent = choice;
+            label.appendChild(input);
+            label.appendChild(text);
+            choices.appendChild(label);
+          });
+          row.appendChild(choices);
+          fieldset.appendChild(row);
+        });
+        body.appendChild(fieldset);
+      });
+    }
+
+    function collectSettingsQuizAnswers() {
+      var form = document.getElementById("settings-level-quiz-form");
+      var answers = {};
+      pendingQuizSubjects.forEach(function (key) {
+        answers[key] = (pendingQuizQuestions[key] || []).map(function (item, questionIndex) {
+          var selected = form.querySelector('input[name="settings_quiz_' + key + '_' + questionIndex + '"]:checked');
+          return selected ? Number(selected.value) : -1;
+        });
+      });
+      return answers;
     }
 
     fetch("/api/me", { credentials: "include" })
@@ -223,6 +320,47 @@
         if (school) school.value = data.school || "";
         initAvatar(data);
       });
+
+    document.getElementById("settings-form").addEventListener("submit", function (event) {
+      if (allowSettingsSubmit) {
+        allowSettingsSubmit = false;
+        return;
+      }
+      var raised = raisedSettingsSubjects();
+      if (!raised.length) return;
+      event.preventDefault();
+      fetch("/api/quiz-questions?subjects=" + raised.join(","), { credentials: "include" })
+        .then(function (response) {
+          return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+        })
+        .then(function (result) {
+          if (!result.ok) throw new Error("quiz_load_failed");
+          pendingQuizSubjects = raised;
+          pendingQuizQuestions = result.data.questions || {};
+          var completeQuestionSet = raised.every(function (key) {
+            return Array.isArray(pendingQuizQuestions[key]) && pendingQuizQuestions[key].length === 5;
+          });
+          if (!completeQuestionSet) throw new Error("quiz_incomplete");
+          renderSettingsLevelQuiz(raised, pendingQuizQuestions);
+          document.getElementById("settings-level-quiz-error").style.display = "none";
+          document.getElementById("settings-level-quiz").classList.remove("hidden");
+        })
+        .catch(function () {
+          window.alert("Die Fragen konnten nicht geladen werden. Bitte versuche es erneut.");
+        });
+    });
+
+    document.getElementById("settings-level-quiz-cancel").addEventListener("click", function () {
+      document.getElementById("settings-level-quiz").classList.add("hidden");
+    });
+
+    document.getElementById("settings-level-quiz-form").addEventListener("submit", function (event) {
+      event.preventDefault();
+      document.getElementById("level-quiz-answers").value = JSON.stringify(collectSettingsQuizAnswers());
+      document.getElementById("settings-level-quiz").classList.add("hidden");
+      allowSettingsSubmit = true;
+      document.getElementById("settings-form").requestSubmit();
+    });
 
     function initialsFromName(name) {
       return (name || "LF").trim().slice(0, 2).toUpperCase() || "LF";

@@ -376,7 +376,6 @@ const _baseText = {
   'password': 'Passwort',
   'confirm_password': 'Passwort bestätigen',
   'invite_code': 'Einladungscode',
-  'setup_only': 'Nur möglich, wenn kein Admin-Konto existiert.',
   'password_short': 'Passwort zu kurz.',
   'api': 'API',
   'hello': 'Hallo',
@@ -424,6 +423,13 @@ const _baseText = {
   'new_password': 'Neues Passwort',
   'confirm_new_password': 'Neues Passwort bestätigen',
   'saved': 'Gespeichert',
+  'level_quiz_title': 'Neue Fach-Stufe bestätigen',
+  'level_quiz_hint': 'Beantworte für jedes erhöhte Fach 5 Fragen.',
+  'level_quiz_missing': 'Bitte beantworte alle Fragen.',
+  'level_quiz_submit': 'Antworten speichern',
+  'level_quiz_required': 'Bitte beantworte zuerst die Fragen zur neuen Fach-Stufe.',
+  'level_quiz_failed': 'Für die neue Fach-Stufe waren noch nicht genug Antworten richtig.',
+  'level_quiz_unavailable': 'Die Fragen für diese Fach-Stufe sind gerade nicht verfügbar.',
   'cancel': 'Abbrechen',
   'ok': 'OK',
   'create': 'Erstellen',
@@ -626,7 +632,6 @@ const _localizedText = {
     'password': 'Password',
     'confirm_password': 'Confirm password',
     'invite_code': 'Invite code',
-    'setup_only': 'Only possible if no admin account exists.',
     'password_short': 'Password too short.',
     'hello': 'Hello',
     'class': 'Class',
@@ -669,6 +674,13 @@ const _localizedText = {
     'new_password': 'New password',
     'confirm_new_password': 'Confirm new password',
     'saved': 'Saved',
+    'level_quiz_title': 'Confirm new subject level',
+    'level_quiz_hint': 'Answer 5 questions for each subject you raised.',
+    'level_quiz_missing': 'Please answer every question.',
+    'level_quiz_submit': 'Save answers',
+    'level_quiz_required': 'Please answer the questions for the new subject level first.',
+    'level_quiz_failed': 'There were not enough correct answers for the new subject level.',
+    'level_quiz_unavailable': 'The questions for this subject level are currently unavailable.',
     'chat_title': 'Chat title',
     'group_duration': 'Study groups stay active until the appointment ends.',
     'learn_tip_1': 'Set one target for the next 25 minutes.',
@@ -1216,11 +1228,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     icon: const Icon(Icons.card_giftcard),
                     label: Text(tx(context, 'codes')),
                   ),
-                  ButtonSegment(
-                    value: AuthMode.setup,
-                    icon: const Icon(Icons.admin_panel_settings),
-                    label: Text(tx(context, 'admin')),
-                  ),
                 ],
                 selected: {mode},
                 onSelectionChanged: busy
@@ -1230,13 +1237,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           error = null;
                         }),
               ),
-              if (mode == AuthMode.setup) ...[
-                const SizedBox(height: 12),
-                Text(
-                  tx(context, 'setup_only'),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
               if (mode == AuthMode.invite) ...[
                 const SizedBox(height: 12),
                 TextField(
@@ -2466,6 +2466,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController newPassword;
   late final TextEditingController newPasswordConfirm;
   late bool notify;
+  late Map<String, String> savedLevels;
   bool busy = false;
   String? status;
 
@@ -2486,6 +2487,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     newPassword = TextEditingController();
     newPasswordConfirm = TextEditingController();
     notify = widget.user.notifyLadenEmail;
+    savedLevels = {
+      'german': german,
+      'math': math,
+      'english': english,
+      'biology': biology,
+      'pgw': pgw,
+      'spanish': spanish,
+      'art': art,
+    };
   }
 
   @override
@@ -2651,6 +2661,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
       status = null;
     });
     try {
+      final selectedLevels = {
+        'german': german,
+        'math': math,
+        'english': english,
+        'biology': biology,
+        'pgw': pgw,
+        'spanish': spanish,
+        'art': art,
+      };
+      const levelRank = {'noob': 0, 'medium': 1, 'pro': 2};
+      final raisedSubjects = selectedLevels.keys
+          .where((key) =>
+              levelRank[selectedLevels[key]]! > levelRank[savedLevels[key]]!)
+          .toList();
+      Map<String, List<int>>? quizAnswers;
+      if (raisedSubjects.isNotEmpty) {
+        quizAnswers = await _showLevelQuiz(raisedSubjects);
+        if (quizAnswers == null) return;
+      }
       await widget.api.postJson('/api/profile', {
         'level_german': german,
         'level_math': math,
@@ -2663,6 +2692,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'notify_laden_email': notify,
         'avatar_url': avatarUrl.text.trim(),
         'iserv_email': iservEmail.text.trim(),
+        if (quizAnswers != null) 'level_quiz_answers': quizAnswers,
         if (wantsPasswordChange) ...{
           'current_password': currentPasswordText,
           'new_password': newPasswordText,
@@ -2670,6 +2700,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         },
       });
       await widget.onSaved();
+      savedLevels = selectedLevels;
       if (wantsPasswordChange) {
         currentPassword.clear();
         newPassword.clear();
@@ -2681,6 +2712,131 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  Future<Map<String, List<int>>?> _showLevelQuiz(
+    List<String> subjects,
+  ) async {
+    final data = await widget.api.getJson(
+      '/api/quiz-questions',
+      {'subjects': subjects.join(',')},
+    );
+    final rawQuestions = data['questions'] as Map? ?? const {};
+    final questions = <String, List<Map<String, dynamic>>>{};
+    for (final subject in subjects) {
+      final rawList = rawQuestions[subject] as List? ?? const [];
+      questions[subject] = rawList
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      if (questions[subject]!.length != 5) {
+        throw const ApiException('level_quiz_unavailable');
+      }
+    }
+    if (!mounted) return null;
+
+    final answers = {
+      for (final subject in subjects)
+        subject: List<int?>.filled(questions[subject]!.length, null),
+    };
+    var showMissing = false;
+    return showDialog<Map<String, List<int>>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(tx(context, 'level_quiz_title')),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(tx(context, 'level_quiz_hint')),
+                  const SizedBox(height: 12),
+                  for (final subject in subjects) ...[
+                    Text(
+                      _subjectLabel(context, subject),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    for (var index = 0;
+                        index < questions[subject]!.length;
+                        index++) ...[
+                      Text(questions[subject]![index]['q']?.toString() ?? ''),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (var choiceIndex = 0;
+                              choiceIndex <
+                                  (questions[subject]![index]['choices'] as List)
+                                      .length;
+                              choiceIndex++)
+                            ChoiceChip(
+                              label: Text(
+                                (questions[subject]![index]['choices'] as List)[choiceIndex]
+                                    .toString(),
+                              ),
+                              selected: answers[subject]![index] == choiceIndex,
+                              onSelected: (_) => setDialogState(() {
+                                answers[subject]![index] = choiceIndex;
+                                showMissing = false;
+                              }),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                  ],
+                  if (showMissing)
+                    Text(
+                      tx(context, 'level_quiz_missing'),
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(tx(context, 'cancel')),
+            ),
+            FilledButton(
+              onPressed: () {
+                final complete = answers.values
+                    .every((values) => values.every((answer) => answer != null));
+                if (!complete) {
+                  setDialogState(() => showMissing = true);
+                  return;
+                }
+                Navigator.pop(dialogContext, {
+                  for (final entry in answers.entries)
+                    entry.key: entry.value.cast<int>(),
+                });
+              },
+              child: Text(tx(context, 'level_quiz_submit')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _subjectLabel(BuildContext context, String subject) {
+    return switch (subject) {
+      'german' => tx(context, 'german'),
+      'math' => tx(context, 'math'),
+      'english' => tx(context, 'english'),
+      'biology' => tx(context, 'biology'),
+      'pgw' => tx(context, 'pgw'),
+      'spanish' => tx(context, 'spanish'),
+      'art' => tx(context, 'art'),
+      _ => subject,
+    };
   }
 }
 
@@ -4537,6 +4693,9 @@ String friendlyError(BuildContext context, Object ex) {
       'invalid_role' => tx(context, 'invalid_role'),
       'invalid_limit' => tx(context, 'invalid_limit'),
       'code_limit' => tx(context, 'code_limit'),
+      'level_quiz_required' => tx(context, 'level_quiz_required'),
+      'level_quiz_failed' => tx(context, 'level_quiz_failed'),
+      'level_quiz_unavailable' => tx(context, 'level_quiz_unavailable'),
       'invalid_datetime' => tx(context, 'invalid_datetime'),
       'empty_location' => tx(context, 'empty_location'),
       'invalid_location' => tx(context, 'invalid_location'),

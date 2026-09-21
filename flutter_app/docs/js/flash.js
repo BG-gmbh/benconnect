@@ -28,6 +28,9 @@
     banned: "Dein Konto wurde gesperrt. Bitte den Admin kontaktieren.",
     account_deleted: "Dein Konto wurde gelöscht.",
     consent_required: "Bitte der Übermittlung an OpenAI zustimmen, oder manuell eintragen.",
+    level_quiz_required: "Bitte beantworte zuerst die Fragen zur neuen Fach-Stufe.",
+    level_quiz_failed: "Die neue Fach-Stufe wurde nicht gespeichert. Dafür waren noch nicht genug Antworten richtig.",
+    level_quiz_unavailable: "Die Fragen für diese Fach-Stufe sind gerade nicht verfügbar.",
   };
 
   var text = messages[code];

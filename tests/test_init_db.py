@@ -132,3 +132,93 @@ def test_invite_codes_pdf_escapes_pdf_control_characters():
 
     assert b"abc\\(123\\)" in payload
     assert b"Schule \\(Nord\\) / 1b" in payload
+
+
+def test_learning_place_update_is_limited_to_owner():
+    user_id = ObjectId()
+    place_id = ObjectId()
+    recorded = {}
+
+    class LearningPlaces:
+        def update_one(self, query, update):
+            recorded["query"] = query
+            recorded["update"] = update
+            return SimpleNamespace(matched_count=1)
+
+    fake_db = SimpleNamespace(learning_places=LearningPlaces())
+    with app_module.app.test_request_context(
+        f"/api/learning-places/{place_id}",
+        method="PUT",
+        json={"name": "  Neue   Bibliothek  ", "address": " Raum 2 ", "note": " Ruhig "},
+    ):
+        app_module.session["user_id"] = str(user_id)
+        with patch.object(app_module, "get_db", return_value=fake_db):
+            response = app_module.learning_places_update.__wrapped__(str(place_id))
+
+    assert response.status_code == 200
+    assert recorded["query"] == {"_id": place_id, "user_id": user_id}
+    assert recorded["update"]["$set"]["name"] == "Neue Bibliothek"
+    assert recorded["update"]["$set"]["address"] == "Raum 2"
+    assert recorded["update"]["$set"]["note"] == "Ruhig"
+
+
+def test_learning_place_update_rejects_non_owner():
+    place_id = ObjectId()
+
+    class LearningPlaces:
+        def update_one(self, query, update):
+            return SimpleNamespace(matched_count=0)
+
+    fake_db = SimpleNamespace(learning_places=LearningPlaces())
+    with app_module.app.test_request_context(
+        f"/api/learning-places/{place_id}",
+        method="PUT",
+        json={"name": "Fremder Lernort"},
+    ):
+        app_module.session["user_id"] = str(ObjectId())
+        with patch.object(app_module, "get_db", return_value=fake_db):
+            response, status = app_module.learning_places_update.__wrapped__(str(place_id))
+
+    assert status == 404
+    assert response.get_json()["error"] == "not_found"
+
+
+def test_level_increase_quiz_is_required_and_checked():
+    row = {
+        "school": "Testschule",
+        "class_name": "8a",
+        **{column: "noob" for column in app_module.CHAT_LEVEL_COLUMN.values()},
+    }
+    levels = tuple(
+        "medium" if subject == "math" else "noob"
+        for subject in app_module.CHAT_SUBJECT_ORDER
+    )
+    questions = [
+        {"correct": 0}, {"correct": 1}, {"correct": 2},
+        {"correct": 0}, {"correct": 1},
+    ]
+
+    with patch.object(app_module, "_resolve_quiz_questions", return_value=questions):
+        assert app_module._validate_level_increase_quiz(None, row, levels, {}) == "level_quiz_required"
+        assert app_module._validate_level_increase_quiz(
+            None, row, levels, {"math": [2, 2, 2, 2, 2]}
+        ) == "level_quiz_failed"
+        assert app_module._validate_level_increase_quiz(
+            None, row, levels, {"math": [0, 1, 2, 2, 2]}
+        ) is None
+
+
+def test_unchanged_or_lower_levels_do_not_require_quiz():
+    row = {
+        **{column: "medium" for column in app_module.CHAT_LEVEL_COLUMN.values()},
+    }
+    unchanged = tuple("medium" for _ in app_module.CHAT_SUBJECT_ORDER)
+    lower = tuple("noob" for _ in app_module.CHAT_SUBJECT_ORDER)
+
+    assert app_module._validate_level_increase_quiz(None, row, unchanged, None) is None
+    assert app_module._validate_level_increase_quiz(None, row, lower, None) is None
+
+
+def test_onboarding_uses_three_questions_per_subject():
+    assert app_module.ONBOARDING_QUIZ_QUESTION_COUNT == 3
+    assert app_module.ONBOARDING_QUIZ_MIN_CORRECT == {"pro": 2, "medium": 1}

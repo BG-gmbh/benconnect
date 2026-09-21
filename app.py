@@ -104,6 +104,9 @@ DEFAULT_QUIZ_QUESTIONS = {
 }
 QUIZ_MIN_CORRECT = {"pro": 4, "medium": 2}
 QUIZ_DOWNGRADE = {"pro": "medium", "medium": "noob"}
+ONBOARDING_QUIZ_QUESTION_COUNT = 3
+ONBOARDING_QUIZ_MIN_CORRECT = {"pro": 2, "medium": 1}
+LEVEL_RANK = {"noob": 0, "medium": 1, "pro": 2}
 
 CHAT_MAX_USERS = 5
 CHAT_BODY_MAX = 500
@@ -454,6 +457,41 @@ def _resolve_quiz_questions(db, school, class_name, subject):
         if len(rows) == 5:
             return rows
     return []
+
+
+def _subjects_with_level_increase(row, levels):
+    return [
+        subject
+        for subject, level in zip(CHAT_SUBJECT_ORDER, levels)
+        if LEVEL_RANK[level] > LEVEL_RANK.get(row.get(CHAT_LEVEL_COLUMN[subject]), 0)
+    ]
+
+
+def _validate_level_increase_quiz(db, row, levels, quiz_answers):
+    """Prueft jede in den Einstellungen angehobene Fach-Stufe."""
+    raised_subjects = _subjects_with_level_increase(row, levels)
+    if not raised_subjects:
+        return None
+    if not isinstance(quiz_answers, dict):
+        return "level_quiz_required"
+
+    school = row.get("school") or ""
+    class_name = row.get("class_name") or ""
+    requested_levels = dict(zip(CHAT_SUBJECT_ORDER, levels))
+    for subject in raised_subjects:
+        official = _resolve_quiz_questions(db, school, class_name, subject)
+        if len(official) != 5:
+            return "level_quiz_unavailable"
+        answers = quiz_answers.get(subject)
+        if not isinstance(answers, list) or len(answers) != len(official):
+            return "level_quiz_required"
+        correct = sum(
+            1 for index, question in enumerate(official)
+            if isinstance(answers[index], int) and answers[index] == question["correct"]
+        )
+        if correct < QUIZ_MIN_CORRECT[requested_levels[subject]]:
+            return "level_quiz_failed"
+    return None
 
 
 def init_db():
@@ -3088,11 +3126,18 @@ def profile_update():
         {
             **{col: 1 for col in CHAT_LEVEL_COLUMN.values()},
             **{col: 1 for col in CHAT_VERIFIED_COLUMN.values()},
-            "avatar_url": 1, "school": 1,
+            "avatar_url": 1, "school": 1, "class_name": 1,
         },
     )
     if level_row is None:
         return redirect("/login.html?flash=needlogin")
+    try:
+        level_quiz_answers = json.loads(request.form.get("level_quiz_answers") or "{}")
+    except (TypeError, ValueError):
+        level_quiz_answers = None
+    quiz_error = _validate_level_increase_quiz(db, level_row, levels, level_quiz_answers)
+    if quiz_error:
+        return redirect(f"/settings.html?flash={quiz_error}")
     avatar_url = level_row.get("avatar_url") or ""
     uploaded_avatar = _save_avatar_upload(request.files.get("avatar_upload"))
     if uploaded_avatar is None:
@@ -3179,11 +3224,16 @@ def api_profile_update():
         {
             **{col: 1 for col in CHAT_LEVEL_COLUMN.values()},
             **{col: 1 for col in CHAT_VERIFIED_COLUMN.values()},
-            "school": 1,
+            "school": 1, "class_name": 1,
         },
     )
     if level_row is None:
         return jsonify(error="auth"), 401
+    quiz_error = _validate_level_increase_quiz(
+        db, level_row, levels, data.get("level_quiz_answers")
+    )
+    if quiz_error:
+        return jsonify(error=quiz_error), 400
     vg, vm, ve, vb, vp, vs, va = next_pro_verification_values(level_row, levels)
     if school != (level_row.get("school") or "") and not school_license_has_free_slot(db, school):
         return jsonify(error="code_limit", **invite_code_quota_payload(db, school)), 429
@@ -3246,6 +3296,7 @@ def api_must_change_password():
 @login_required_api
 def learning_places_list():
     db = get_db()
+    current_user_id = oid(session["user_id"])
     school = admin_school(db)
     flt = {"$or": [{"school": school}, {"school": ""}]} if school else {}
     rows = list(
@@ -3263,6 +3314,7 @@ def learning_places_list():
                 "address": row.get("address") or "",
                 "note": row.get("note") or "",
                 "created_at": row.get("created_at"),
+                "can_edit": row.get("user_id") == current_user_id,
             }
             for row in rows
         ]
@@ -3297,6 +3349,38 @@ def learning_places_create():
         "note": note,
         "created_at": utcnow(),
     })
+    return jsonify(ok=True)
+
+
+@app.route("/api/learning-places/<place_id>", methods=["PUT"])
+@login_required_api
+def learning_places_update(place_id):
+    place_oid = oid(place_id)
+    if place_oid is None:
+        return jsonify(error="invalid_id"), 400
+
+    data = request.get_json(silent=True) or {}
+    name = " ".join((data.get("name") or "").strip().split())
+    address = " ".join((data.get("address") or "").strip().split())
+    note = (data.get("note") or "").strip()
+    if not name or len(name) > 120:
+        return jsonify(error="invalid_name"), 400
+    if len(address) > 200:
+        return jsonify(error="invalid_address"), 400
+    if len(note) > 500:
+        return jsonify(error="invalid_note"), 400
+
+    result = get_db().learning_places.update_one(
+        {"_id": place_oid, "user_id": oid(session["user_id"])},
+        {"$set": {
+            "name": name,
+            "address": address,
+            "note": note,
+            "updated_at": utcnow(),
+        }},
+    )
+    if not result.matched_count:
+        return jsonify(error="not_found"), 404
     return jsonify(ok=True)
 
 
@@ -3476,12 +3560,26 @@ def api_quiz_questions():
     if not subjects:
         return jsonify(error="invalid_subjects"), 400
     db = get_db()
-    row = db.users.find_one({"_id": oid(session["user_id"])}, {"school": 1, "class_name": 1})
-    school = (row.get("school") if row else "") or ""
-    class_name = (row.get("class_name") if row else "") or ""
+    onboarding_mode = request.args.get("mode") == "onboarding"
+    if onboarding_mode:
+        school = _normalize_school_name(request.args.get("school"))
+        class_name = normalize_class_name(request.args.get("class_name"))
+        if school is None or class_name is None:
+            return jsonify(error="invalid_profile"), 400
+    else:
+        row = db.users.find_one(
+            {"_id": oid(session["user_id"])}, {"school": 1, "class_name": 1}
+        )
+        school = (row.get("school") if row else "") or ""
+        class_name = (row.get("class_name") if row else "") or ""
     out = {}
+    question_count = (
+        ONBOARDING_QUIZ_QUESTION_COUNT
+        if onboarding_mode
+        else 5
+    )
     for subject in subjects:
-        rows = _resolve_quiz_questions(db, school, class_name, subject)
+        rows = _resolve_quiz_questions(db, school, class_name, subject)[:question_count]
         out[subject] = [{"q": r["question"], "choices": r["choices"]} for r in rows]
     return jsonify(questions=out)
 
@@ -3511,23 +3609,28 @@ def api_onboarding_confirm():
     notes = []
     for subject in CHAT_SUBJECT_ORDER:
         claimed = levels[subject]
-        min_correct = QUIZ_MIN_CORRECT.get(claimed)
-        if not min_correct:
+        if claimed not in ONBOARDING_QUIZ_MIN_CORRECT:
             continue
-        answers = quiz_answers.get(subject)
-        if not isinstance(answers, list):
-            continue
-        official = _resolve_quiz_questions(db, school, class_name, subject)
-        if len(official) != 5:
+        answers = quiz_answers.get(subject) if isinstance(quiz_answers, dict) else None
+        official = _resolve_quiz_questions(db, school, class_name, subject)[
+            :ONBOARDING_QUIZ_QUESTION_COUNT
+        ]
+        if len(official) != ONBOARDING_QUIZ_QUESTION_COUNT:
             continue
         correct = sum(
             1 for i, row in enumerate(official)
-            if i < len(answers) and isinstance(answers[i], int) and answers[i] == row["correct"]
+            if isinstance(answers, list)
+            and i < len(answers)
+            and isinstance(answers[i], int)
+            and answers[i] == row["correct"]
         )
-        if correct < min_correct:
+        if correct < ONBOARDING_QUIZ_MIN_CORRECT[claimed]:
             downgraded = QUIZ_DOWNGRADE[claimed]
-            notes.append(f"{CHAT_SUBJECT_LABELS[subject]}: {correct}/5 richtig — Stufe von "
-                         f"{claimed} auf {downgraded} angepasst.")
+            notes.append(
+                f"{CHAT_SUBJECT_LABELS[subject]}: "
+                f"{correct}/{ONBOARDING_QUIZ_QUESTION_COUNT} richtig — Stufe von "
+                f"{claimed} auf {downgraded} angepasst."
+            )
             levels[subject] = downgraded
 
     update_fields = {CHAT_LEVEL_COLUMN[s]: levels[s] for s in CHAT_SUBJECT_ORDER}

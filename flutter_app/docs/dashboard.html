@@ -38,12 +38,11 @@
       <p id="class-summary" class="level-summary muted"></p>
 
       <div id="subjects-block" style="margin-top:1rem;">
-        <div class="tab-row" role="tablist">
-          <button type="button" id="tab-current" class="btn btn-small tab-btn" role="tab" aria-selected="true">Aktuelle Fächer</button>
-          <button type="button" id="tab-hidden" class="btn btn-small btn-secondary tab-btn" role="tab" aria-selected="false">Ausgeblendet <span id="tab-hidden-count"></span></button>
+        <div class="tab-row">
+          <button type="button" id="tab-hidden" class="btn btn-small btn-secondary tab-btn" aria-pressed="false">Ausgeblendet <span id="tab-hidden-count"></span></button>
         </div>
-        <ul id="subjects-current" class="subject-chips" role="tabpanel"></ul>
-        <ul id="subjects-hidden" class="subject-chips hidden" role="tabpanel"></ul>
+        <ul id="subjects-current" class="subject-chips"></ul>
+        <ul id="subjects-hidden" class="subject-chips hidden"></ul>
       </div>
       <p class="muted" style="margin-top:1rem;">
         <a href="/laden.html">Laden</a> — Angebote und Materialien vom Team.
@@ -72,7 +71,8 @@
           Notiz
           <textarea id="place-note" maxlength="500" rows="3" placeholder="Was ist dort gut zum Lernen?"></textarea>
         </label>
-        <button type="submit" class="btn btn-block">Lernort hinzufügen</button>
+        <button type="submit" id="place-submit" class="btn btn-block">Lernort hinzufügen</button>
+        <button type="button" id="place-cancel" class="btn btn-secondary btn-block hidden">Bearbeiten abbrechen</button>
       </form>
       <ul id="place-list" class="code-list place-list"></ul>
     </section>
@@ -104,7 +104,7 @@
       </div>
 
       <div id="onboarding-step-quiz" class="hidden">
-        <p class="field-hint modal-hint">Beantworte pro Fach 5 Fragen, damit wir deine Stufe überprüfen können. Bei zu wenig richtigen Antworten wird die Stufe automatisch angepasst.</p>
+        <p class="field-hint modal-hint">Beantworte pro Fach 3 kurze Fragen, damit wir deine Stufe überprüfen können. Bei zu wenig richtigen Antworten wird die Stufe automatisch angepasst.</p>
         <form id="onboarding-quiz-form" autocomplete="off">
           <div id="onboarding-quiz-body"></div>
           <p id="onboarding-quiz-error" class="field-hint modal-hint" style="color:#ef476f;display:none;"></p>
@@ -185,27 +185,45 @@
     }
 
     (function () {
-      var tc = document.getElementById("tab-current");
       var th = document.getElementById("tab-hidden");
       var pc = document.getElementById("subjects-current");
       var ph = document.getElementById("subjects-hidden");
-      if (!tc || !th || !pc || !ph) return;
-      function show(currentActive) {
-        pc.classList.toggle("hidden", !currentActive);
-        ph.classList.toggle("hidden", currentActive);
-        tc.setAttribute("aria-selected", currentActive ? "true" : "false");
-        th.setAttribute("aria-selected", currentActive ? "false" : "true");
-        tc.classList.toggle("btn-secondary", !currentActive);
-        th.classList.toggle("btn-secondary", currentActive);
+      if (!th || !pc || !ph) return;
+      function showHidden(hiddenActive) {
+        pc.classList.toggle("hidden", hiddenActive);
+        ph.classList.toggle("hidden", !hiddenActive);
+        th.setAttribute("aria-pressed", hiddenActive ? "true" : "false");
+        th.classList.toggle("btn-secondary", !hiddenActive);
       }
-      tc.addEventListener("click", function () { show(true); });
-      th.addEventListener("click", function () { show(false); });
+      th.addEventListener("click", function () {
+        showHidden(th.getAttribute("aria-pressed") !== "true");
+      });
     })();
 
     function esc(s) {
       var d = document.createElement("div");
       d.textContent = s == null ? "" : s;
       return d.innerHTML;
+    }
+
+    var editingPlaceId = null;
+
+    function resetPlaceForm() {
+      editingPlaceId = null;
+      document.getElementById("place-form").reset();
+      document.getElementById("place-submit").textContent = "Lernort hinzufügen";
+      document.getElementById("place-cancel").classList.add("hidden");
+    }
+
+    function editPlace(place) {
+      editingPlaceId = place.id;
+      document.getElementById("place-name").value = place.name || "";
+      document.getElementById("place-address").value = place.address || "";
+      document.getElementById("place-note").value = place.note || "";
+      document.getElementById("place-submit").textContent = "Änderungen speichern";
+      document.getElementById("place-cancel").classList.remove("hidden");
+      document.getElementById("place-form").scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById("place-name").focus({ preventScroll: true });
     }
 
     function renderPlaces(data) {
@@ -226,6 +244,16 @@
           (p.address ? " <span class=\"muted\">— " + esc(p.address) + "</span>" : "") +
           (p.note ? "<br><span class=\"muted\">" + esc(p.note).replace(/\n/g, "<br>") + "</span>" : "") +
           "<br><span class=\"muted\">Eingetragen von " + esc(p.username) + (p.school ? " · " + esc(p.school) : "") + "</span>";
+        if (p.can_edit) {
+          var editButton = document.createElement("button");
+          editButton.type = "button";
+          editButton.className = "btn btn-small btn-secondary";
+          editButton.style.marginTop = "0.5rem";
+          editButton.textContent = "Bearbeiten";
+          editButton.addEventListener("click", function () { editPlace(p); });
+          li.appendChild(document.createElement("br"));
+          li.appendChild(editButton);
+        }
         list.appendChild(li);
       });
     }
@@ -241,8 +269,11 @@
 
     document.getElementById("place-form").addEventListener("submit", function (e) {
       e.preventDefault();
-      fetch("/api/learning-places", {
-        method: "POST",
+      var placeUrl = editingPlaceId
+        ? "/api/learning-places/" + encodeURIComponent(editingPlaceId)
+        : "/api/learning-places";
+      fetch(placeUrl, {
+        method: editingPlaceId ? "PUT" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -261,10 +292,12 @@
             window.alert("Lernort konnte nicht gespeichert werden.");
             return;
           }
-          document.getElementById("place-form").reset();
+          resetPlaceForm();
           loadPlaces();
         });
     });
+
+    document.getElementById("place-cancel").addEventListener("click", resetPlaceForm);
 
     fetch("/api/me", { credentials: "include" })
       .then(function (r) {
@@ -450,7 +483,13 @@
 
         var loadBtn = confirmForm.querySelector("button[type=submit]");
         if (loadBtn) loadBtn.disabled = true;
-        fetch("/api/quiz-questions?subjects=" + subjectsToVerify.join(","), { credentials: "include" })
+        var quizParams = new URLSearchParams({
+          mode: "onboarding",
+          subjects: subjectsToVerify.join(","),
+          school: school,
+          class_name: klass,
+        });
+        fetch("/api/quiz-questions?" + quizParams.toString(), { credentials: "include" })
           .then(function (r) { return r.json(); })
           .then(function (data) {
             if (loadBtn) loadBtn.disabled = false;
