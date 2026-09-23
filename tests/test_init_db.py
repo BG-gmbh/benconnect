@@ -124,7 +124,10 @@ def test_invite_codes_pdf_is_valid_and_contains_codes_on_multiple_pages():
     assert b"code-24" in payload
     assert b"/Count 3" in payload
     assert b"[4 3] 0 d" in payload
-    assert payload.count(b"495 68 re S") == 25
+    assert payload.count(b"242 126 re S") == 25
+    assert b"50 622 242 126 re S" in payload
+    assert b"303 622 242 126 re S" in payload
+    assert b"50 484 242 126 re S" in payload
     assert payload.count(b"% QR ") == 25
     assert payload.count(b"Webseite: benconnect.cyou") == 25
 
@@ -141,7 +144,8 @@ def test_invite_codes_pdf_escapes_pdf_control_characters():
     ])
 
     assert b"abc\\(123\\)" in payload
-    assert b"Schule \\(Nord\\) / 1b" in payload
+    assert b"Schule: Schule \\(Nord\\)" in payload
+    assert b"(Klasse: 1b)" in payload
 
 
 def test_admin_can_create_multiple_invite_codes_at_once():
