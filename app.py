@@ -2089,7 +2089,7 @@ def _invite_registration_url(code):
 def _invite_codes_pdf(rows):
     """Create a printable PDF worksheet for unused invite codes."""
     rows = list(rows)
-    per_page = 9
+    per_page = 10
     pages = [rows[i:i + per_page] for i in range(0, len(rows), per_page)] or [[]]
     objects = []
 
@@ -2108,30 +2108,35 @@ def _invite_codes_pdf(rows):
             "BT /F1 18 Tf 50 800 Td (Schüler_innen-Liste - Einladungscodes) Tj ET",
             f"BT /F1 9 Tf 50 782 Td (Seite {page_number} von {len(pages)}) Tj ET",
             "0.6 w 50 757 m 545 757 l S",
-            "BT /F1 10 Tf 55 765 Td (Datensatz) Tj 426 0 Td (QR-Code) Tj ET",
         ]
-        row_top = 748
         start_number = (page_number - 1) * per_page
         for index, row in enumerate(page_rows, 1):
-            school_class = (row.get("school") or "-")
-            if row.get("class_name"):
-                school_class += " / " + row["class_name"]
+            school = str(row.get("school") or "-")
+            class_name = str(row.get("class_name") or "-")
             code = str(row.get("_id") or "")
             registration_url = _invite_registration_url(code)
-            box_bottom = row_top - 68
+            column = (index - 1) % 2
+            row_index = (index - 1) // 2
+            box_x = 50 + column * 253
+            box_top = 748 - row_index * 138
+            box_bottom = box_top - 126
+            text_x = box_x + 10
             commands.extend([
-                f"q [4 3] 0 d 0.8 G 50 {box_bottom} 495 68 re S Q",
-                "BT /F1 10 Tf "
-                f"55 {row_top - 15} Td (Nr. {start_number + index}) Tj "
-                f"55 0 Td (Einladungscode: {_pdf_escape(code)}) Tj ET",
-                f"BT /F1 10 Tf 55 {row_top - 31} Td "
-                f"(Schule / Klasse: {_pdf_escape(school_class[:48])}) Tj ET",
-                f"BT /F1 10 Tf 55 {row_top - 47} Td (Name: ________________________________) Tj ET",
-                f"BT /F1 8 Tf 55 {row_top - 61} Td (Webseite: benconnect.cyou) Tj ET",
+                f"q 0.8 w [4 3] 0 d 0.45 G {box_x} {box_bottom} 242 126 re S Q",
+                f"BT /F1 9 Tf {text_x} {box_top - 16} Td "
+                f"(Nr. {start_number + index}) Tj ET",
+                f"BT /F1 10 Tf {text_x} {box_top - 32} Td "
+                f"(Einladungscode: {_pdf_escape(code)}) Tj ET",
+                f"BT /F1 9 Tf {text_x} {box_top - 47} Td "
+                f"(Schule: {_pdf_escape(school[:32])}) Tj ET",
+                f"BT /F1 9 Tf {text_x} {box_top - 61} Td "
+                f"(Klasse: {_pdf_escape(class_name[:20])}) Tj ET",
+                f"BT /F1 9 Tf {text_x} {box_bottom + 51} Td (Name:) Tj ET",
+                f"BT /F1 9 Tf {text_x} {box_bottom + 36} Td (________________________) Tj ET",
+                f"BT /F1 8 Tf {text_x} {box_bottom + 14} Td (Webseite: benconnect.cyou) Tj ET",
                 f"% QR {start_number + index}",
-                _qr_pdf_commands(registration_url, 484, box_bottom + 7, 54),
+                _qr_pdf_commands(registration_url, box_x + 164, box_bottom + 7, 70),
             ])
-            row_top -= 72
         if not page_rows:
             commands.append("BT /F1 11 Tf 50 720 Td (Keine offenen Einladungscodes vorhanden.) Tj ET")
         commands.append(
@@ -2190,11 +2195,16 @@ def admin_invite_codes_pdf():
             rows = list(db.invite_codes.find(flt).sort("class_name", 1))
     else:
         rows = list(db.invite_codes.find(flt).sort("class_name", 1))
-    filename = f"schueler-innen-liste-{utcnow().date().isoformat()}.pdf"
+    filename = f"einladungscodes-{utcnow().strftime('%Y-%m-%d-%H%M%S-%f')}.pdf"
     return Response(
         _invite_codes_pdf(rows),
         mimetype="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )
 
 
