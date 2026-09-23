@@ -170,7 +170,7 @@
         <p><button type="submit" class="btn btn-secondary">Limits speichern</button></p>
       </form>
       <p class="actions">
-        <button type="button" class="btn admin-write-action" id="btn-new-code">Codes erzeugen</button>
+        <button type="button" class="btn admin-write-action" id="btn-new-code">Einladungscodes erzeugen (1–100)</button>
         <a class="btn btn-secondary" href="/api/admin/invite-codes.pdf" download>Codes als PDF exportieren</a>
       </p>
       <p class="muted" id="new-code-out" aria-live="polite"></p>
@@ -466,11 +466,11 @@
 
       <div class="modal-field">
         <label for="new-code-role">Rolle</label>
-        <select id="new-code-role" class="modal-input"></select>
+        <select id="new-code-role" class="modal-input"><option value="user">User</option></select>
       </div>
 
       <div class="modal-field">
-        <label for="new-code-count">Anzahl</label>
+        <label for="new-code-count">Anzahl der Einladungscodes (1–100)</label>
         <input id="new-code-count" class="modal-input" type="number" min="1" max="100" step="1" value="1">
       </div>
 
@@ -1142,13 +1142,16 @@
         newCodeModal.classList.add("hidden");
       });
 
-      document.getElementById("new-code-save").addEventListener("click", function () {
+      var newCodeSave = document.getElementById("new-code-save");
+      var newCodeCancel = document.getElementById("new-code-cancel");
+      newCodeSave.addEventListener("click", function () {
+        if (newCodeSave.disabled) return;
         var out = document.getElementById("new-code-out");
         newCodeModalError.textContent = "";
         var school = (document.getElementById("new-code-school").value || "").trim();
         var className = (document.getElementById("new-code-class").value || "").trim();
         var role = document.getElementById("new-code-role").value || "user";
-        var count = Number(document.getElementById("new-code-count").value || 1);
+        var count = Number(document.getElementById("new-code-count").value);
         if (className.length > 20) {
           newCodeModalError.textContent = "Die Klasse darf höchstens 20 Zeichen lang sein.";
           return;
@@ -1157,6 +1160,9 @@
           newCodeModalError.textContent = "Bitte eine Anzahl zwischen 1 und 100 eingeben.";
           return;
         }
+        newCodeSave.disabled = true;
+        newCodeCancel.disabled = true;
+        newCodeSave.textContent = "Wird erzeugt …";
         fetch("/api/admin/invite-codes", {
           method: "POST",
           credentials: "include",
@@ -1185,8 +1191,12 @@
                   ".";
               } else if (x.d && x.d.error === "forbidden") {
                 newCodeModalError.textContent = "Diese Rolle darfst du nicht für Einladungscodes vergeben.";
+              } else if (x.d && x.d.error === "auth") {
+                newCodeModalError.textContent = "Bitte erneut anmelden und danach die Codes erzeugen.";
+              } else if (x.d && x.d.error === "invalid_count") {
+                newCodeModalError.textContent = "Bitte eine Anzahl zwischen 1 und 100 eingeben.";
               } else {
-                newCodeModalError.textContent = "Code konnte nicht erzeugt werden.";
+                newCodeModalError.textContent = "Einladungscodes konnten nicht erzeugt werden. Bitte Schule, Klasse und Rolle prüfen.";
               }
               return;
             }
@@ -1197,6 +1207,14 @@
               : createdCount + " neue Codes wurden erzeugt. Du kannst sie jetzt als PDF exportieren.";
             loadCodes();
             loadInviteCodeLimits(x.d.school || "");
+          })
+          .catch(function () {
+            newCodeModalError.textContent = "Keine Bestätigung vom Server erhalten. Bitte den Dialog schließen und die Codeliste neu laden, bevor du es erneut versuchst.";
+          })
+          .finally(function () {
+            newCodeSave.disabled = false;
+            newCodeCancel.disabled = false;
+            newCodeSave.textContent = "Erzeugen";
           });
       });
 
