@@ -45,8 +45,10 @@
     <section class="card chat-panel hidden" id="chat-panel">
       <div class="chat-panel-head">
         <h2 id="chat-title">Chat</h2>
+        <button type="button" class="btn btn-secondary btn-small" id="btn-save-learning-group">Lerngruppe speichern</button>
         <button type="button" class="btn btn-ghost btn-small" id="btn-leave">Raum verlassen</button>
       </div>
+      <p class="field-hint" id="learning-group-status" role="status"></p>
       <div id="chat-appointment" class="chat-appointment"></div>
       <p class="field-hint" id="chat-roster"></p>
       <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
@@ -92,9 +94,12 @@
 
   <div id="subject-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="subject-modal-title">
     <div class="modal-card">
-      <h2 id="subject-modal-title" class="modal-title">Fach wählen</h2>
-      <p class="modal-hint">Für welches Pro-Fach möchtest du einen Raum erstellen?</p>
+      <h2 id="subject-modal-title" class="modal-title">Chat erstellen</h2>
+      <p class="modal-hint">Wähle ein Fach für einen offenen Chat oder eine bestehende Lerngruppe. Zum Start wird ein Pro im Fach benötigt.</p>
+      <h3>Neuer Fächer-Chat</h3>
       <div id="subject-modal-choices" class="subject-choice-list"></div>
+      <h3>Bestehende Lerngruppe</h3>
+      <div id="learning-group-choices" class="subject-choice-list"></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" id="subject-cancel">Abbrechen</button>
       </div>

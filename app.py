@@ -237,7 +237,7 @@ def chat_subject_key(raw):
 
 
 def chat_room_key(raw):
-    value = (raw or "").strip().lower()
+    value = raw.strip().lower() if isinstance(raw, str) else ""
     if not value:
         return None, None
     if ":" not in value:
@@ -642,7 +642,7 @@ def delete_chat_subject_data(db, subject=None):
         subject_filter = {}
         room_filter = {}
     else:
-        subject_filter = {"subject": subject}
+        subject_filter = {"subject": {"$regex": f"^{re.escape(subject)}(:|$)"}}
         room_filter = {"_id": {"$regex": f"^{re.escape(subject)}(:|$)"}}
 
     db.chat_presence.delete_many(subject_filter)
@@ -650,6 +650,18 @@ def delete_chat_subject_data(db, subject=None):
     db.chat_appointments.delete_many(room_filter)
     db.chat_ratings.delete_many(subject_filter)
     db.chat_message_reports.delete_many(subject_filter)
+
+
+def _user_may_access_chat_room(db, user_id, room_key):
+    room, subject = chat_room_key(room_key)
+    if not room or not user_may_access_subject(db, user_id, subject):
+        return False
+    if ":group-" in room:
+        group_id = oid(room.split(":group-", 1)[1])
+        return group_id is not None and db.learning_groups.find_one({
+            "_id": group_id, "subject": subject, "member_ids": oid(user_id),
+        }) is not None
+    return True
 
 
 def _user_role_for_chat(db, user_id):
@@ -665,7 +677,7 @@ def _chat_may_use_room(db, user_id, subject):
     role = _user_role_for_chat(db, user_id)
     if role in ("teacher", "admin", "dev"):
         return True
-    if _user_level_for_subject(db, user_id, subject) == "pro":
+    if _user_level_for_subject(db, user_id, chat_room_key(subject)[1]) == "pro":
         return True
     return _chat_presence_pro_count(db, subject) >= 1
 
@@ -2360,6 +2372,45 @@ def admin_invite_delete(code):
     return jsonify(ok=True)
 
 
+@app.route("/api/chat/learning-groups", methods=["GET", "POST"])
+@login_required_api
+def chat_learning_groups():
+    db = get_db()
+    uid = oid(session["user_id"])
+    if request.method == "GET":
+        groups = []
+        for group in db.learning_groups.find({"member_ids": uid}).sort("created_at", -1):
+            if not user_may_access_subject(db, uid, group["subject"]):
+                continue
+            members = [u["username"] for u in db.users.find(
+                {"_id": {"$in": group["member_ids"]}}, {"username": 1},
+            )]
+            groups.append({
+                "id": str(group["_id"]), "name": group["name"],
+                "subject": group["subject"],
+                "room": f"{group['subject']}:group-{group['_id']}",
+                "members": sorted(members, key=str.lower),
+            })
+        return jsonify(groups=groups)
+
+    data = request.get_json(silent=True) or {}
+    room, subject = chat_room_key(data.get("subject"))
+    name = data.get("name")
+    if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
+        return jsonify(error="invalid_name"), 400
+    if not room or not _user_may_access_chat_room(db, uid, room):
+        return jsonify(error="invalid_subject"), 400
+    members = list(db.chat_presence.find({"subject": room}))
+    member_ids = list(dict.fromkeys(p["user_id"] for p in members))
+    if uid not in member_ids:
+        return jsonify(error="not_in_room"), 403
+    group_id = db.learning_groups.insert_one({
+        "name": name.strip(), "subject": subject, "member_ids": member_ids,
+        "created_by": uid, "created_at": utcnow(),
+    }).inserted_id
+    return jsonify(ok=True, id=str(group_id)), 201
+
+
 @app.route("/api/chat/rooms", methods=["GET"])
 @login_required_api
 def chat_rooms():
@@ -2384,6 +2435,10 @@ def chat_rooms():
         if viewer_lv == "pro" or viewer_role in ("teacher", "admin", "dev"):
             creatable.append({"subject": base_subject, "label": CHAT_SUBJECT_LABELS[base_subject]})
         for room_key in room_keys:
+            if not _user_may_access_chat_room(db, uid, room_key):
+                continue
+            group = (db.learning_groups.find_one({"_id": oid(room_key.split(":group-", 1)[1])})
+                     if ":group-" in room_key else None)
             verified_col = CHAT_VERIFIED_COLUMN[base_subject]
             presence_rows = list(db.chat_presence.find({"subject": room_key}))
             member_user_ids = [
@@ -2447,7 +2502,7 @@ def chat_rooms():
                 {
                     "subject": room_key,
                     "base_subject": base_subject,
-                    "label": chat_room_label(room_key),
+                    "label": group["name"] if group else chat_room_label(room_key),
                     "count": count_total,
                     "count_non_pro": non_pro_n,
                     "count_pro": pro_n,
@@ -2482,7 +2537,7 @@ def chat_appointment_get():
         return jsonify(error="invalid_subject"), 400
     db = get_db()
     uid = session["user_id"]
-    if not user_may_access_subject(db, uid, base_subject):
+    if not _user_may_access_chat_room(db, uid, room_key):
         return jsonify(error="invalid_subject"), 400
     row = db.chat_appointments.find_one({"_id": room_key})
     if not row:
@@ -2563,7 +2618,7 @@ def chat_appointment_post():
 
     db = get_db()
     uid = session["user_id"]
-    if not user_may_access_subject(db, uid, base_subject):
+    if not _user_may_access_chat_room(db, uid, room_key):
         return jsonify(error="invalid_subject"), 400
     level = _user_level_for_subject(db, uid, base_subject)
     if level != "pro":
@@ -2599,7 +2654,7 @@ def chat_appointment_start():
         return jsonify(error="invalid_subject"), 400
     db = get_db()
     uid = session["user_id"]
-    if not user_may_access_subject(db, uid, base_subject):
+    if not _user_may_access_chat_room(db, uid, room_key):
         return jsonify(error="invalid_subject"), 400
     level = _user_level_for_subject(db, uid, base_subject)
     if level != "pro":
@@ -2630,7 +2685,7 @@ def chat_appointment_end():
         return jsonify(error="invalid_subject"), 400
     db = get_db()
     uid = session["user_id"]
-    if not user_may_access_subject(db, uid, base_subject):
+    if not _user_may_access_chat_room(db, uid, room_key):
         return jsonify(error="invalid_subject"), 400
     level = _user_level_for_subject(db, uid, base_subject)
     if level != "pro":
@@ -2671,7 +2726,7 @@ def chat_appointment_rate():
         return jsonify(error="need_comment"), 400
     db = get_db()
     uid = session["user_id"]
-    if not user_may_access_subject(db, uid, base_subject):
+    if not _user_may_access_chat_room(db, uid, room_key):
         return jsonify(error="invalid_subject"), 400
     level = _user_level_for_subject(db, uid, base_subject)
     if level != "pro":
@@ -2698,16 +2753,16 @@ def chat_appointment_rate():
 @login_required_api
 def chat_join():
     data = request.get_json(silent=True) or {}
-    subject = chat_subject_key(data.get("subject"))
+    subject, base_subject = chat_room_key(data.get("subject"))
     if not subject:
         return jsonify(error="invalid_subject"), 400
 
     db = get_db()
     uid = session["user_id"]
-    if not user_may_access_subject(db, uid, subject):
+    if not _user_may_access_chat_room(db, uid, subject):
         return jsonify(error="invalid_subject"), 400
     uname = session["username"]
-    lvl = _user_level_for_subject(db, uid, subject)
+    lvl = _user_level_for_subject(db, uid, base_subject)
     role = _user_role_for_chat(db, uid)
 
     row = db.chat_presence.find_one(
@@ -2746,12 +2801,12 @@ def chat_join():
 @login_required_api
 def chat_leave():
     data = request.get_json(silent=True) or {}
-    subject = chat_subject_key(data.get("subject"))
+    subject, base_subject = chat_room_key(data.get("subject"))
     if not subject:
         return jsonify(error="invalid_subject"), 400
     db = get_db()
     uid = session["user_id"]
-    if not user_may_access_subject(db, uid, subject):
+    if not _user_may_access_chat_room(db, uid, subject):
         return jsonify(error="invalid_subject"), 400
     prow = db.chat_presence.find_one(
         {"subject": subject, "user_id": oid(uid)}, {"level": 1}
@@ -2767,17 +2822,17 @@ def chat_leave():
 @app.route("/api/chat/messages", methods=["GET"])
 @login_required_api
 def chat_messages():
-    subject = chat_subject_key(request.args.get("subject"))
+    subject, base_subject = chat_room_key(request.args.get("subject"))
     if not subject:
         return jsonify(error="invalid_subject"), 400
     since = oid(request.args.get("since"))
 
     db = get_db()
     uid = session["user_id"]
-    if not user_may_access_subject(db, uid, subject):
+    if not _user_may_access_chat_room(db, uid, subject):
         return jsonify(error="invalid_subject"), 400
-    level_col = CHAT_LEVEL_COLUMN[subject]
-    verified_col = CHAT_VERIFIED_COLUMN[subject]
+    level_col = CHAT_LEVEL_COLUMN[base_subject]
+    verified_col = CHAT_VERIFIED_COLUMN[base_subject]
     in_room = db.chat_presence.find_one(
         {"subject": subject, "user_id": oid(uid)}, {"_id": 1}
     )
@@ -2836,7 +2891,7 @@ def chat_messages():
 @login_required_api
 def chat_send():
     data = request.get_json(silent=True) or {}
-    subject = chat_subject_key(data.get("subject"))
+    subject, base_subject = chat_room_key(data.get("subject"))
     body = (data.get("body") or "").strip()
     if not subject:
         return jsonify(error="invalid_subject"), 400
@@ -2846,7 +2901,7 @@ def chat_send():
 
     db = get_db()
     uid = session["user_id"]
-    if not user_may_access_subject(db, uid, subject):
+    if not _user_may_access_chat_room(db, uid, subject):
         return jsonify(error="invalid_subject"), 400
     uname = session["username"]
 
@@ -2905,7 +2960,7 @@ def chat_report_message():
         return jsonify(error="message_not_found"), 404
     if msg["user_id"] == oid(uid):
         return jsonify(error="own_message"), 400
-    if not user_may_access_subject(db, uid, msg["subject"]):
+    if not _user_may_access_chat_room(db, uid, msg["subject"]):
         return jsonify(error="message_not_found"), 404
     in_room = db.chat_presence.find_one(
         {"subject": msg["subject"], "user_id": oid(uid)}, {"_id": 1}
@@ -3054,6 +3109,9 @@ def _erase_user_account(db, user_id):
     db.chat_ratings.delete_many({"user_id": uid})
     db.admin_subject_scores.delete_many({"user_id": uid})
     db.learning_places.delete_many({"user_id": uid})
+    db.learning_groups.update_many({"member_ids": uid}, {"$pull": {"member_ids": uid}})
+    db.learning_groups.update_many({"created_by": uid}, {"$set": {"created_by": None}})
+    db.learning_groups.delete_many({"member_ids": {"$size": 0}})
     db.api_tokens.delete_many({"user_id": uid})
     db.users.delete_one({"_id": uid})
 

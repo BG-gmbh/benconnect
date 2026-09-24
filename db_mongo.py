@@ -183,6 +183,8 @@ def ensure_indexes():
         name="idx_learning_places_school_created",
     )
 
+    db.learning_groups.create_index("member_ids", name="idx_learning_groups_members")
+
     # chat_presence: PRIMARY KEY (subject, user_id).
     db.chat_presence.create_index(
         [("subject", ASCENDING), ("user_id", ASCENDING)],

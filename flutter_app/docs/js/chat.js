@@ -149,7 +149,7 @@
         btn.textContent = "Beitreten";
       }
       btn.addEventListener("click", function () {
-        if (!btn.disabled) openSubject(room.subject);
+        if (!btn.disabled) openSubject(room.subject, room.label);
       });
       card.appendChild(btn);
 
@@ -247,7 +247,7 @@
     });
   }
 
-  function openSubject(subject) {
+  function openSubject(subject, label) {
     setLobbyError("");
     api("/api/chat/join", { method: "POST", body: { subject: subject } }).then(function (res) {
       if (res.status === 409) {
@@ -267,6 +267,8 @@
         return;
       }
       currentSubject = subject;
+      $("learning-group-status").textContent = "";
+      $("btn-save-learning-group").disabled = false;
       sinceId = "";
       $("chat-messages").innerHTML = "";
       $("lobby").classList.add("hidden");
@@ -280,7 +282,7 @@
         spanish: "Spanisch",
         art: "Kunst",
       };
-      $("chat-title").textContent = "Chat: " + (labels[subject] || subject);
+      $("chat-title").textContent = "Chat: " + (label || labels[subject.split(":")[0]] || subject);
       stopRoomsPoll();
       stopMsgPoll();
       stopAppointmentPoll();
@@ -445,7 +447,7 @@
     var hasProRight =
       currentSubject &&
       userLevels &&
-      userLevels["level_" + currentSubject] === "pro";
+      userLevels["level_" + currentSubject.split(":")[0]] === "pro";
 
     var stableKey = stableAppointmentKey(data, hasProRight);
     if (stableKey === lastAppointmentUiKey) {
@@ -767,12 +769,13 @@
     if (!userLevels) return;
     var btn = $("btn-create-room");
     if (!btn) return;
-    btn.style.display = creatableSubjects.length ? "inline-flex" : "none";
+    btn.style.display = "inline-flex";
   }
 
   function canCreateSubject(subject) {
     if (!userLevels) return false;
-    return userLevels["level_" + subject] === "pro";
+    return userLevels["level_" + subject] === "pro" ||
+      ["teacher", "admin", "dev"].indexOf(userLevels.role) !== -1;
   }
 
   function chooseProSubject() {
@@ -780,12 +783,13 @@
     creatableSubjects.forEach(function (room) {
       if (canCreateSubject(room.subject)) choices.push({ label: room.label, subject: room.subject });
     });
-    if (!choices.length) return Promise.resolve(null);
-    if (choices.length === 1) return Promise.resolve(choices[0].subject);
-    return openSubjectModal(choices);
+    return api("/api/chat/learning-groups", { method: "GET" }).then(function (res) {
+      if (!res.ok) throw new Error("groups_load_failed");
+      return openSubjectModal(choices, res.data.groups || []);
+    });
   }
 
-  function openSubjectModal(choices) {
+  function openSubjectModal(choices, groups) {
     var modal = $("subject-modal");
     var list = $("subject-modal-choices");
     var cancelBtn = $("subject-cancel");
@@ -823,16 +827,33 @@
         btn.type = "button";
         btn.className = "subject-choice-btn";
         btn.textContent = choice.label;
-        btn.addEventListener("click", function () { finish(choice.subject); });
+        btn.addEventListener("click", function () { finish(choice); });
         list.appendChild(btn);
       });
+
+      var groupList = $("learning-group-choices");
+      groupList.innerHTML = "";
+      groups.forEach(function (group) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "subject-choice-btn";
+        var subjectLabel = subjects.filter(function (s) { return s[0] === group.subject; })[0];
+        btn.textContent = group.name + " · " + (subjectLabel ? subjectLabel[1] : group.subject) +
+          " · " + group.members.join(", ");
+        btn.addEventListener("click", function () {
+          finish({ subject: group.room, label: group.name });
+        });
+        groupList.appendChild(btn);
+      });
+      if (!groups.length) groupList.textContent = "Noch keine Lerngruppe gespeichert. Im Chat kannst du die aktuellen Mitglieder als Lerngruppe speichern.";
+      if (!choices.length) list.textContent = "Du kannst eine gespeicherte Lerngruppe auswählen. Für einen neuen Fächer-Chat brauchst du die Pro-Stufe.";
 
       if (cancelBtn) cancelBtn.onclick = function () { finish(null); };
       modal.addEventListener("click", onBackdrop);
       document.addEventListener("keydown", onKeydown);
 
       modal.classList.remove("hidden");
-      var first = list.querySelector(".subject-choice-btn");
+      var first = modal.querySelector(".subject-choice-btn") || cancelBtn;
       if (first) first.focus();
     });
   }
@@ -858,13 +879,43 @@
     });
   }
 
+  $("btn-save-learning-group").addEventListener("click", function () {
+    if (!currentSubject) return;
+    var name = window.prompt("Name der Lerngruppe (max. 80 Zeichen):");
+    if (name === null) return;
+    name = name.trim();
+    var status = $("learning-group-status");
+    if (!name || name.length > 80) {
+      status.textContent = "Bitte einen Namen mit 1 bis 80 Zeichen eingeben.";
+      return;
+    }
+    var room = currentSubject;
+    var btn = $("btn-save-learning-group");
+    btn.disabled = true;
+    api("/api/chat/learning-groups", {
+      method: "POST", body: { subject: room, name: name },
+    }).then(function (res) {
+      if (currentSubject !== room) return;
+      if (!res.ok) throw new Error("save_failed");
+      status.textContent = "Lerngruppe gespeichert. Alle aktuellen Mitglieder können sie beim Chat erstellen auswählen.";
+    }).catch(function () {
+      if (currentSubject !== room) return;
+      btn.disabled = false;
+      status.textContent = "Lerngruppe konnte nicht gespeichert werden. Bitte erneut versuchen.";
+    });
+  });
+
   $("btn-create-room").addEventListener("click", function () {
-    chooseProSubject().then(function (subject) {
-      if (!subject) {
-        setLobbyError("Wähle zuerst ein Pro-Fach aus, um einen Raum zu erstellen.");
-        return;
-      }
-      openSubject(subject);
+    var btn = $("btn-create-room");
+    btn.disabled = true;
+    setLobbyError("");
+    chooseProSubject().then(function (choice) {
+      if (choice) openSubject(choice.subject, choice.label);
+    }).catch(function () {
+      setLobbyError("Lerngruppen konnten nicht geladen werden. Bitte erneut versuchen.");
+    }).finally(function () {
+      btn.disabled = false;
+      btn.focus();
     });
   });
 
