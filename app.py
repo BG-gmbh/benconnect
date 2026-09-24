@@ -106,7 +106,7 @@ DEFAULT_QUIZ_QUESTIONS = {
 QUIZ_MIN_CORRECT = {"pro": 4, "medium": 2}
 QUIZ_DOWNGRADE = {"pro": "medium", "medium": "noob"}
 ONBOARDING_QUIZ_QUESTION_COUNT = 3
-ONBOARDING_QUIZ_MIN_CORRECT = {"pro": 2, "medium": 1}
+ONBOARDING_QUIZ_MIN_CORRECT = {"pro": 2}
 LEVEL_RANK = {"noob": 0, "medium": 1, "pro": 2}
 
 CHAT_MAX_USERS = 5

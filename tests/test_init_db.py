@@ -303,4 +303,4 @@ def test_unchanged_or_lower_levels_do_not_require_quiz():
 
 def test_onboarding_uses_three_questions_per_subject():
     assert app_module.ONBOARDING_QUIZ_QUESTION_COUNT == 3
-    assert app_module.ONBOARDING_QUIZ_MIN_CORRECT == {"pro": 2, "medium": 1}
+    assert app_module.ONBOARDING_QUIZ_MIN_CORRECT == {"pro": 2}

@@ -104,7 +104,7 @@
       </div>
 
       <div id="onboarding-step-quiz" class="hidden">
-        <p class="field-hint modal-hint">Beantworte pro Fach 3 kurze Fragen, damit wir deine Stufe überprüfen können. Bei zu wenig richtigen Antworten wird die Stufe automatisch angepasst.</p>
+        <p class="field-hint modal-hint">Beantworte für jedes Fach mit der Stufe „Pro“ 3 kurze Fragen. Für „Mittel“ und „Noob“ sind keine Einstiegsfragen nötig. Bei zu wenig richtigen Antworten wird die Stufe automatisch angepasst.</p>
         <form id="onboarding-quiz-form" autocomplete="off">
           <div id="onboarding-quiz-body"></div>
           <p id="onboarding-quiz-error" class="field-hint modal-hint" style="color:#ef476f;display:none;"></p>
@@ -472,7 +472,7 @@
         var school = (document.getElementById("onboarding-school").value || "").trim();
         var subjectsToVerify = SUBJECTS
           .map(function (p) { return p[0]; })
-          .filter(function (key) { return levels[key] !== "noob"; });
+          .filter(function (key) { return levels[key] === "pro"; });
 
         if (!subjectsToVerify.length) {
           var directBtn = confirmForm.querySelector("button[type=submit]");
