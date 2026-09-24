@@ -1021,3 +1021,51 @@ body.role-readonly .admin-write-action {
   font-size: 0.92rem;
   margin-bottom: 1.5rem;
 }
+
+/* Shared keyboard navigation and small-screen safeguards. */
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.skip-link { position: fixed; top: 8px; left: 8px; padding: 12px 18px; background: var(--surface); color: var(--text); z-index: 2000; transform: translateY(-160%); }
+.skip-link:focus { transform: translateY(0); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.shop-grid { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
+
+.mobile-menu-toggle { display: none; }
+@media (max-width: 700px) {
+  body { min-height: 100svh; }
+  .site-header { gap: .75rem; padding: .8rem 1rem; }
+  .brand-logo { width: 2.75rem; height: 2.75rem; }
+  .mobile-menu-toggle { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; min-width: 76px; min-height: 44px; border: 1px solid var(--muted); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+  .mobile-nav-collapsible > nav { display: none; width: 100%; }
+  .mobile-nav-collapsible.nav-open > nav { display: flex; }
+  .mobile-nav-collapsible #nav-user { width: 100%; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem !important; }
+  .mobile-nav-collapsible #nav-user.hidden { display: none !important; }
+  .mobile-nav-collapsible .nav-user { grid-column: 1 / -1; overflow-wrap: anywhere; }
+  .mobile-nav-collapsible #nav-user .btn { width: 100%; }
+  .site-header a[aria-current="page"] { box-shadow: inset 0 -3px 0 var(--accent); }
+  .btn-small, .tab-btn, .subject-choice-btn, .radio-pill { min-height: 44px; }
+  .container { padding: 1rem; }
+  .card { padding: 1.1rem; min-width: 0; overflow-wrap: anywhere; }
+  .stack-form input, .stack-form select, .stack-form textarea, .modal-input, .chat-rating-input, .chat-rating-textarea, .admin-table input { font-size: 16px; max-width: 100%; }
+  .avatar-controls { min-width: 0; flex-basis: 100%; }
+  .avatar-preview.avatar-small { min-width: 44px; }
+  .subject-row { flex-direction: column; align-items: flex-start; }
+  .radio-row { width: 100%; }
+  .radio-pill { flex: 1; justify-content: center; }
+  .chat-send { flex-wrap: nowrap; }
+  .chat-send input { flex: 1 1 0; }
+  .chat-send .btn { padding-inline: .8rem; }
+  .modal-backdrop { padding: .75rem; }
+  .modal-card { max-height: calc(100svh - 1.5rem); padding: 1rem; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions .btn { flex: 1; }
+  .site-footer { padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
+  .site-footer-nav a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+@media (max-width: 700px) {
+  fieldset { min-width: 0; }
+  .stack-form input, .stack-form select, .stack-form textarea { min-width: 0; }
+  .stack-form input[type="file"] { width: 100%; }
+}

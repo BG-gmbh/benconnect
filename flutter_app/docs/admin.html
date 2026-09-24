@@ -9,7 +9,9 @@
 <body>
   <header class="site-header">
     <a class="logo" href="/" aria-label="benconnect Startseite"><img class="brand-logo" src="/assets/benconnect-logo.jpeg" alt="benconnect"></a>
-    <nav>
+    <nav aria-label="Hauptnavigation">
+      <span id="nav-guest" class="hidden"><a href="/login.html" class="btn">Einloggen</a></span>
+      <span id="nav-user">
       <span class="nav-user" id="nav-username"></span>
       <a href="/dashboard.html" class="btn btn-small">Dashboard</a>
       <a href="/laden.html" class="btn btn-small btn-secondary">Laden</a>
@@ -19,6 +21,7 @@
       <form class="inline-form" action="/logout" method="post">
         <button type="submit" class="btn btn-ghost">Logout</button>
       </form>
+      </span>
     </nav>
   </header>
 
@@ -1907,6 +1910,7 @@
       loadInviteCodeLimits();
     })();
   </script>
+  <script src="/js/nav.js"></script>
   <script src="/js/footer.js"></script>
 </body>
 </html>

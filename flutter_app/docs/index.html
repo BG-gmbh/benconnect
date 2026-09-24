@@ -3,14 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Start — benconnect</title>
+  <title>benconnect — Zusammen lernt sich’s leichter.</title>
+  <meta name="description" content="Finde deine Lerngruppe, teile dein Wissen und lerne gemeinsam mit anderen. Dein Einstieg bei benconnect – mit dem Einladungscode deiner Schule.">
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/welcome.css">
 </head>
-<body>
+<body class="welcome-page">
+  <a class="skip-link" href="#main">Zum Inhalt</a>
   <header class="site-header">
-    <a class="logo" href="/" aria-label="benconnect Startseite"><img class="brand-logo" src="/assets/benconnect-logo.jpeg" alt="benconnect"></a>
-    <nav>
+    <a class="logo" href="/" aria-label="benconnect Startseite"><span class="brand-mark" aria-hidden="true">b<span>c</span></span><span>benconnect<span class="brand-dot">.</span></span></a>
+    <nav aria-label="Hauptnavigation">
       <span id="nav-guest">
+        <a class="nav-explainer" href="#so-gehts">So funktioniert’s</a>
+        <a class="nav-login" href="/login.html">Einloggen <span aria-hidden="true">↗</span></a>
       </span>
       <span id="nav-user" class="hidden" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
         <span class="nav-user" id="nav-username"></span>
@@ -26,16 +31,48 @@
     </nav>
   </header>
 
-  <main class="container">
-    <ul id="flash-banner"></ul>
-    <section class="hero">
-      <h1>Willkommen</h1>
-      <p class="lead">Login mit bestehendem Konto.</p>
-      <div class="actions">
-        <a class="btn" href="/login.html">Einloggen</a>
-        <a class="btn btn-secondary" href="/einladung.html">Mit Code registrieren</a>
+  <main id="main" class="welcome-main">
+    <ul id="flash-banner" aria-live="polite"></ul>
+    <section class="welcome-hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="status-dot"></span> DEIN WISSEN. EUER WEITERKOMMEN.</p>
+        <h1 id="hero-title">Zusammen<br>lernt sich’s<br><span>leichter.</span><svg class="title-spark" viewBox="0 0 60 60" aria-hidden="true"><path d="M30 5v50M5 30h50M12 12l36 36M12 48l36-36"/></svg></h1>
+        <p class="hero-description">Du musst nicht alles alleine schaffen. Finde deine Lerngruppe, stellt eure Fragen und bringt euch gegenseitig weiter.</p>
+        <div class="hero-actions" id="welcome-actions">
+          <a class="btn" href="/einladung.html">Mit Einladungscode starten <span aria-hidden="true">↗</span></a>
+          <a class="text-link" href="/login.html">Ich habe schon ein Konto <span aria-hidden="true">→</span></a>
+        </div>
+        <p class="entry-note">Deinen Einladungscode erhältst du von deiner Lehrkraft oder dem Admin.</p>
+      </div>
+      <div class="learning-scene" aria-label="Beispiel einer Lerngruppe">
+        <span class="scene-orbit orbit-one" aria-hidden="true"></span>
+        <span class="scene-orbit orbit-two" aria-hidden="true"></span>
+        <div class="floating-note note-top"><span aria-hidden="true">✦</span> Gemeinsam mehr verstehen</div>
+        <div class="study-card">
+          <div class="study-card-top"><span class="mini-brand">bc<span>.</span></span><span class="example-label">SO KÖNNTE ES AUSSEHEN</span><span class="card-dots" aria-hidden="true">•••</span></div>
+          <div class="subject-symbol" aria-hidden="true">x²</div>
+          <p class="study-kicker">DEINE LERNGRUPPE</p>
+          <h2>Mathe? Machen wir.</h2>
+          <p class="study-subtitle">Ein Thema. Mehrere Perspektiven.</p>
+          <div class="avatar-stack" aria-hidden="true"><span>L</span><span>M</span><span>S</span><span>Du</span><small>Zusammen geht’s</small></div>
+          <div class="sample-message"><span class="message-avatar" aria-hidden="true">L</span><div><strong>Lena <span>· Beispiel</span></strong><p>Kann mir jemand die Aufgabe erklären?</p></div></div>
+          <div class="sample-message reply"><span class="message-avatar" aria-hidden="true">M</span><div><strong>Max</strong><p>Klar! Schauen wir sie uns zusammen an. <span aria-hidden="true">🙌</span></p></div></div>
+          <div class="study-card-bottom"><span class="status-dot"></span> Platz für Fragen. Und für Aha-Momente.</div>
+        </div>
+        <div class="floating-note note-bottom"><span class="check-badge" aria-hidden="true">✓</span><div><strong>Wissen teilen lohnt sich.</strong><span>Helfen. Punkte sammeln. Weiterkommen.</span></div></div>
+        <span class="scene-caption">Kleine Gruppe. Großer Unterschied.</span>
       </div>
     </section>
+    <div class="benefit-strip" aria-label="Das bietet benconnect"><span>Von Fragen zu Aha-Momenten</span><span><b aria-hidden="true">↗</b> Gemeinsam lernen</span><span><b aria-hidden="true">✳</b> Wissen teilen</span><span><b aria-hidden="true">◎</b> Punkte sammeln</span></div>
+    <section class="how-section" id="so-gehts" aria-labelledby="how-title">
+      <div class="section-heading"><div><p class="eyebrow">DEIN NÄCHSTER SCHRITT</p><h2 id="how-title">Reinkommen. Zusammen weiterkommen.</h2></div><p>Vom ersten Klick bis zur Lerngruppe.<br>Ganz unkompliziert.</p></div>
+      <div class="steps-grid">
+        <article class="step-card"><span class="step-number">01 /</span><span class="step-icon" aria-hidden="true">↗</span><h3>Dein Code. Dein Start.</h3><p>Registriere dich mit deinem Einladungscode und richte dein Profil ein.</p><a href="/einladung.html">Konto erstellen <span aria-hidden="true">→</span></a></article>
+        <article class="step-card"><span class="step-number">02 /</span><span class="step-icon lilac" aria-hidden="true">✳</span><h3>Finde deinen Anschluss.</h3><p>Gib deine Stärken an und entdecke Lerngruppen für deine Fächer.</p><span class="step-detail">Jeder kann etwas beitragen.</span></article>
+        <article class="step-card"><span class="step-number">03 /</span><span class="step-icon peach" aria-hidden="true">◎</span><h3>Wachst über euch hinaus.</h3><p>Tauscht euch im Chat aus, verabredet euch zum Lernen und sammelt Punkte fürs Helfen.</p><span class="step-detail">Dein Wissen macht einen Unterschied.</span></article>
+      </div>
+    </section>
+    <section class="welcome-cta"><div><p class="eyebrow">BESSER ZUSAMMEN.</p><h2>Dein nächster Aha-Moment wartet.</h2></div><a class="btn" href="/einladung.html">Jetzt loslegen <span aria-hidden="true">↗</span></a></section>
   </main>
   <script src="/js/config.js"></script>
   <script src="/js/flash.js"></script>

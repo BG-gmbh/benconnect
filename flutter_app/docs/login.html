@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Login — benconnect</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/welcome.css">
 </head>
-<body>
+<body class="welcome-page auth-page">
+  <a class="skip-link" href="#main">Zum Inhalt</a>
   <header class="site-header">
-    <a class="logo" href="/" aria-label="benconnect Startseite"><img class="brand-logo" src="/assets/benconnect-logo.jpeg" alt="benconnect"></a>
-    <nav>
-      <span id="nav-guest">
-      </span>
+    <a class="logo" href="/" aria-label="benconnect Startseite"><span class="brand-mark" aria-hidden="true">b<span>c</span></span><span>benconnect<span class="brand-dot">.</span></span></a>
+    <nav aria-label="Hauptnavigation">
+      <span id="nav-guest"><a class="nav-login" href="/">Zur Startseite <span aria-hidden="true">↗</span></a></span>
       <span id="nav-user" class="hidden" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
         <span class="nav-user" id="nav-username"></span>
         <a href="/dashboard.html" class="btn btn-small">Dashboard</a>
@@ -26,10 +27,10 @@
     </nav>
   </header>
 
-  <main class="container">
-    <ul id="flash-banner"></ul>
+  <main class="container" id="main">
+    <ul id="flash-banner" aria-live="polite"></ul>
     <section class="card">
-      <h1>Einloggen</h1>
+      <p class="eyebrow">SCHÖN, DASS DU DA BIST.</p><h1>Willkommen zurück.</h1><p class="auth-intro">Melde dich an und lerne mit deiner Gruppe weiter.</p>
       <form method="post" action="/login" class="stack-form" autocomplete="on" id="login-form">
         <label>
           Benutzername
@@ -39,7 +40,7 @@
           Passwort
           <input name="password" type="password" required autocomplete="current-password">
         </label>
-        <button type="submit" class="btn btn-block">Login</button>
+        <button type="submit" class="btn btn-block">Einloggen <span aria-hidden="true">→</span></button>
       </form>
       <div class="actions actions-stack">
         <a class="btn btn-secondary" href="/einladung.html">Mit Code registrieren</a>
