@@ -1033,6 +1033,29 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .shop-grid { grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
 
 .mobile-menu-toggle { display: none; }
+/* One button style for navigation links, logout and the mobile menu toggle. */
+.site-header #nav-user .btn,
+.site-header .mobile-menu-toggle {
+  min-height: 44px;
+  padding: .65rem .85rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: .9rem;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+}
+.site-header #nav-user .btn:hover,
+.site-header .mobile-menu-toggle:hover {
+  border-color: var(--accent-hover);
+  background: var(--surface);
+  color: var(--accent-hover);
+  transform: none;
+  text-decoration: none;
+}
 @media (max-width: 700px) {
   body { min-height: 100svh; }
   .site-header { gap: .75rem; padding: .8rem 1rem; }
