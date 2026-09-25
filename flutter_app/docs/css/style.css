@@ -1108,7 +1108,9 @@ body :is(button, .btn, .nav-login, .radio-pill, input[type="submit"], input[type
   outline: 2px solid var(--button-blue);
   outline-offset: 4px;
 }
-body :is(button, .btn, .nav-login, .radio-pill, input[type="submit"], input[type="button"], input[type="reset"]):active:not(:disabled):not([aria-disabled="true"]) {
+body :is(button, .btn, .nav-login, .radio-pill, input[type="submit"], input[type="button"], input[type="reset"]):active:not(:disabled):not([aria-disabled="true"]),
+body .site-header a[aria-current="page"],
+body .tab-btn:is(.is-active, [aria-selected="true"], [aria-pressed="true"]) {
   background: var(--button-pressed) !important;
   border-color: var(--button-pressed) !important;
   color: #fff !important;
