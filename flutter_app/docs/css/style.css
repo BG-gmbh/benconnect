@@ -9,6 +9,8 @@
   --success: #7fd99a;
   --warning: #ffcc66;
   --radius: 12px;
+  --button-blue: #3d9cf5;
+  --button-pressed: #1765ad;
   font-family: system-ui, "Segoe UI", Roboto, Ubuntu, sans-serif;
 }
 
@@ -1067,7 +1069,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .mobile-nav-collapsible #nav-user.hidden { display: none !important; }
   .mobile-nav-collapsible .nav-user { grid-column: 1 / -1; overflow-wrap: anywhere; }
   .mobile-nav-collapsible #nav-user .btn { width: 100%; }
-  .site-header a[aria-current="page"] { box-shadow: inset 0 -3px 0 var(--accent); }
+  .site-header a[aria-current="page"] { box-shadow: inset 0 -3px 0 var(--button-blue); }
   .btn-small, .tab-btn, .subject-choice-btn, .radio-pill { min-height: 44px; }
   .container { padding: 1rem; }
   .card { padding: 1.1rem; min-width: 0; overflow-wrap: anywhere; }
@@ -1092,3 +1094,23 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .stack-form input, .stack-form select, .stack-form textarea { min-width: 0; }
   .stack-form input[type="file"] { width: 100%; }
 }
+
+/* Shared interaction colors override the navigation and welcome-page skins.
+   Hover stays transparent, including on touchscreens after a tap. */
+body :is(button, .btn, .nav-login, .radio-pill, input[type="submit"], input[type="button"], input[type="reset"]) {
+  background: transparent !important;
+  color: var(--button-blue) !important;
+  border: 1px solid var(--button-blue) !important;
+  transform: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+body :is(button, .btn, .nav-login, .radio-pill, input[type="submit"], input[type="button"], input[type="reset"]):focus-visible {
+  outline: 2px solid var(--button-blue);
+  outline-offset: 4px;
+}
+body :is(button, .btn, .nav-login, .radio-pill, input[type="submit"], input[type="button"], input[type="reset"]):active:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--button-pressed) !important;
+  border-color: var(--button-pressed) !important;
+  color: #fff !important;
+}
+body button:disabled { opacity: .55; cursor: not-allowed; }

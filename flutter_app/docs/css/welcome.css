@@ -1,5 +1,6 @@
 /* Public welcome and account pages; application screens retain their own theme. */
 .welcome-page {
+  --button-blue: #1765ad;
   --bg: #f7f8f5;
   --surface: #fff;
   --text: #203b34;
