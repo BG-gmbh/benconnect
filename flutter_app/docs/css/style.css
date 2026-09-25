@@ -61,8 +61,8 @@ a:hover {
 
 .brand-logo {
   display: block;
-  width: 4rem;
-  height: 4rem;
+  width: 7.5rem;
+  height: 5rem;
   object-fit: contain;
   border-radius: 10px;
 }
@@ -1059,7 +1059,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 700px) {
   body { min-height: 100svh; }
   .site-header { gap: .75rem; padding: .8rem 1rem; }
-  .brand-logo { width: 2.75rem; height: 2.75rem; }
+  .brand-logo { width: 6rem; height: 4rem; }
   .mobile-menu-toggle { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; min-width: 76px; min-height: 44px; border: 1px solid var(--muted); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
   .mobile-nav-collapsible > nav { display: none; width: 100%; }
   .mobile-nav-collapsible.nav-open > nav { display: flex; }
