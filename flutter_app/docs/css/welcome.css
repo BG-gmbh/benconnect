@@ -1,19 +1,4 @@
-/* Public welcome and account pages; application screens retain their own theme. */
-.welcome-page {
-  --button-blue: #1765ad;
-  --bg: #f7f8f5;
-  --surface: #fff;
-  --text: #203b34;
-  --muted: #64716b;
-  --accent: #285847;
-  --accent-hover: #183e30;
-  --danger: #ac303c;
-  --success: #247044;
-  --warning: #825a13;
-  background: var(--bg);
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
+/* Welcome and account layouts extend the shared light theme. */
 .welcome-page .site-header { max-width: 1248px; margin: auto; padding: 26px 44px; background: transparent; border: 0; }
 .welcome-page .logo { gap: 11px; font-size: 25px; letter-spacing: -1px; }
 .brand-dot { color: #668e52; }

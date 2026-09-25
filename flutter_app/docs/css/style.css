@@ -1,17 +1,20 @@
 :root {
-  --bg: #0f1419;
-  --surface: #1a222d;
-  --text: #e8eef5;
-  --muted: #8b9aad;
-  --accent: #3d9cf5;
-  --accent-hover: #5cb0ff;
-  --danger: #f07178;
-  --success: #7fd99a;
-  --warning: #ffcc66;
+  color-scheme: light;
+  --bg: #f7f8f5;
+  --surface: #fff;
+  --text: #203b34;
+  --muted: #64716b;
+  --accent: #285847;
+  --accent-hover: #183e30;
+  --danger: #ac303c;
+  --success: #247044;
+  --warning: #825a13;
+  --border: #dfe5d9;
+  --input-bg: #fafbf8;
   --radius: 12px;
-  --button-blue: #3d9cf5;
+  --button-blue: #1765ad;
   --button-pressed: #1765ad;
-  font-family: system-ui, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
 }
 
 *,
@@ -26,6 +29,7 @@ body {
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -43,9 +47,12 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--surface);
-  border-bottom: 1px solid #2a3544;
+  width: 100%;
+  max-width: 1248px;
+  margin: 0 auto;
+  padding: 1.5rem 2.75rem;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -102,13 +109,13 @@ a:hover {
 }
 
 .container {
-  max-width: 28rem;
+  max-width: 31rem;
   margin: 0 auto;
   padding: 1.25rem;
 }
 
 .container-wide {
-  max-width: 32rem;
+  max-width: 44rem;
 }
 
 .hero {
@@ -152,12 +159,14 @@ a:hover {
   background: var(--surface);
   border-radius: var(--radius);
   padding: 1.5rem;
-  border: 1px solid #2a3544;
+  box-shadow: 0 12px 40px #243d3210;
+  border: 1px solid var(--border);
 }
 
 .card h1 {
   margin: 0 0 1rem;
-  font-size: 1.35rem;
+  font-size: 1.7rem;
+  letter-spacing: -.8px;
 }
 
 .card h2 {
@@ -177,7 +186,8 @@ a:hover {
   flex-direction: column;
   gap: 0.35rem;
   font-size: 0.9rem;
-  color: var(--muted);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .stack-form input,
@@ -185,12 +195,22 @@ a:hover {
 .stack-form textarea {
   padding: 0.65rem 0.75rem;
   border-radius: 8px;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
   font-size: 1rem;
   min-height: 44px;
   font-family: inherit;
+}
+
+.stack-form input,
+.stack-form select,
+.stack-form textarea,
+.modal-input,
+.chat-send input,
+.chat-rating-input,
+.chat-rating-textarea {
+  background: var(--input-bg);
 }
 
 .stack-form textarea {
@@ -249,7 +269,7 @@ a:hover {
 .btn-ghost {
   background: transparent;
   color: var(--muted);
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   font-weight: 500;
 }
 
@@ -306,7 +326,7 @@ a:hover {
   margin: 0;
   padding: 0.75rem 0 0;
   border: none;
-  border-top: 1px solid #2a3544;
+  border-top: 1px solid var(--border);
 }
 
 .subject-levels-plain {
@@ -341,7 +361,7 @@ a:hover {
   min-width: 160px;
   border-radius: 40px;
   background: rgba(61, 156, 245, 0.14);
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -356,7 +376,7 @@ a:hover {
   height: 44px;
   border-radius: 999px;
   background: rgba(61, 156, 245, 0.14);
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -415,7 +435,7 @@ a:hover {
   gap: 0.35rem;
   padding: 0.45rem 0.65rem;
   border-radius: 8px;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--bg);
   color: var(--muted);
   font-size: 0.9rem;
@@ -462,7 +482,7 @@ a:hover {
 }
 
 .room-card {
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1rem;
   background: var(--bg);
@@ -505,7 +525,7 @@ a:hover {
 }
 
 .chat-messages {
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
   min-height: 220px;
@@ -519,7 +539,7 @@ a:hover {
   margin-bottom: 0.65rem;
   padding: 0.45rem 0.5rem;
   border-radius: 6px;
-  background: rgba(42, 53, 68, 0.35);
+  background: #f0f3eb;
 }
 
 .chat-msg-own {
@@ -551,9 +571,9 @@ a:hover {
   gap: 0.5rem;
   padding: 0.75rem;
   margin-top: 0.75rem;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(42, 53, 68, 0.12);
+  background: #f0f3eb;
 }
 
 .chat-rating-input,
@@ -561,7 +581,7 @@ a:hover {
   width: 100%;
   padding: 0.55rem 0.65rem;
   border-radius: 8px;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
 }
@@ -579,15 +599,15 @@ a:hover {
 
 .chat-ratings-pro-list li {
   padding: 0.35rem 0;
-  border-bottom: 1px solid #2a3544;
+  border-bottom: 1px solid var(--border);
 }
 
 .chat-appointment {
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.75rem;
   margin-bottom: 0.75rem;
-  background: rgba(42, 53, 68, 0.12);
+  background: #f0f3eb;
 }
 
 .chat-appointment-text {
@@ -611,7 +631,7 @@ a:hover {
   min-width: 0;
   padding: 0.65rem 0.75rem;
   border-radius: 8px;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
   font-size: 1rem;
@@ -653,7 +673,7 @@ a:hover {
 .tab-btn {
   padding: 0.5rem 0.85rem;
   border-radius: 8px;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--surface);
   color: var(--muted);
   font-size: 0.95rem;
@@ -685,7 +705,7 @@ a:hover {
 
 .code-list li {
   padding: 0.35rem 0;
-  border-bottom: 1px solid #2a3544;
+  border-bottom: 1px solid var(--border);
 }
 
 .check-row {
@@ -755,7 +775,7 @@ a:hover {
 
 .admin-table th,
 .admin-table td {
-  border-bottom: 1px solid #2a3544;
+  border-bottom: 1px solid var(--border);
   padding: 0.5rem 0.45rem;
   text-align: left;
   vertical-align: top;
@@ -771,7 +791,7 @@ a:hover {
   width: 5.5rem;
   padding: 0.35rem 0.45rem;
   border-radius: 6px;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
 }
@@ -782,7 +802,7 @@ a:hover {
   width: 100%;
   padding: 0.35rem 0.45rem;
   border-radius: 6px;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
 }
@@ -810,10 +830,10 @@ a:hover {
   max-height: 90vh;
   overflow-y: auto;
   background: var(--surface);
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.25rem 1.25rem 1rem;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 40px #243d3226;
 }
 
 .modal-title {
@@ -834,7 +854,7 @@ a:hover {
   width: 100%;
   padding: 0.55rem 0.65rem;
   border-radius: 8px;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -852,7 +872,7 @@ a:hover {
 .modal-map-wrap {
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--bg);
   aspect-ratio: 16 / 10;
 }
@@ -895,7 +915,7 @@ a:hover {
   width: 100%;
   padding: 0.7rem 0.85rem;
   border-radius: 10px;
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -946,7 +966,7 @@ a:hover {
   padding: 0.35rem 0.7rem;
   border-radius: 999px;
   background: var(--surface);
-  border: 1px solid #2a3544;
+  border: 1px solid var(--border);
   font-size: 0.9rem;
 }
 .subject-chip .chip-name {
@@ -956,7 +976,7 @@ a:hover {
   font-size: 0.78rem;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  color: #081018;
+  color: #fff;
 }
 .chip-pro .chip-level { background: var(--success); }
 .chip-medium .chip-level { background: var(--warning); }
@@ -973,7 +993,10 @@ body.role-readonly .admin-write-action {
   margin-top: 3rem;
   padding: 1.5rem 1rem;
   text-align: center;
-  border-top: 1px solid #2a3544;
+  border-top: 1px solid var(--border);
+  max-width: 1160px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .site-footer-nav a {
