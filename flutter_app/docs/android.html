@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BenConnect für Android</title>
+<meta name="theme-color" content="#3657e8">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5ff;color:#1f2a49;font:17px/1.65 system-ui,sans-serif}main{max-width:660px;margin:6vh auto;padding:32px;background:white;border-radius:24px;box-shadow:0 14px 50px #25367912}a{color:#3657e8}h1{font-size:clamp(30px,7vw,44px);line-height:1.15}.badge{color:#3657e8;font-weight:700}.button{display:inline-block;background:#3657e8;color:white;padding:14px 22px;border-radius:12px;text-decoration:none;font-weight:700}li{margin:12px 0}.note{background:#f3f5ff;padding:18px;border-radius:12px}small{color:#53607c}footer{margin-top:30px}@media(max-width:700px){main{margin:16px;padding:24px}}
+</style>
+</head>
+<body><main>
+<a href="/">← Zur Website</a>
+<p class="badge">BENCONNECT · ANDROID</p>
+<h1>Deine Lerngruppen.<br>Jetzt als App.</h1>
+<p>Nutze BenConnect mit deinem bestehenden Konto direkt auf deinem Android-Handy.</p>
+<p><a class="button" href="/downloads/benconnect.apk" download>Android-App herunterladen</a></p>
+<small id="version">Für Android 10 oder neuer · Internetverbindung erforderlich</small>
+<h2>So installierst du die App</h2>
+<ol><li>Lade die APK auf deinem Android-Handy herunter und öffne sie.</li><li>Falls Android nachfragt, erlaube deinem Browser das Installieren von Apps aus dieser Quelle.</li><li>Tippe auf „Installieren“, öffne BenConnect und melde dich an.</li></ol>
+<h2>So bekommst du Updates</h2>
+<p>Änderungen an der Website stehen beim nächsten Laden auch in der App bereit. Im App-Menü kannst du jederzeit „Neu laden“ wählen.</p>
+<p>Für eine neue Android-Version öffnest du im App-Menü „App herunterladen / aktualisieren“, lädst die neue APK herunter und bestätigst „Aktualisieren“.</p>
+<p class="note">Die vorhandene App dafür nicht deinstallieren. Neue Versionen werden mit demselben Schlüssel signiert und lassen sich über die bestehende Installation installieren.</p>
+<h2>Signierzertifikat der App</h2>
+<p>Die APK ist mit dem BenConnect-Signierzertifikat signiert. Android prüft damit, dass ein Update zum selben Signierschlüssel gehört wie die installierte App.</p>
+<p><a href="/downloads/benconnect-signing-cert.pem" download>Öffentliches Signierzertifikat herunterladen (.pem)</a></p>
+<p><small>SHA-256-Fingerabdruck:</small><br><code style="overflow-wrap:anywhere;font-size:12px">F0:75:2F:5C:21:3D:96:65:6D:4B:55:C2:D4:D6:D7:AC:96:78:37:0E:E6:64:EA:A9:AB:B2:A1:73:5F:E0:18:97</code></p>
+<p><small>Du musst dieses Zertifikat nicht auf deinem Handy installieren. Es ist ein selbstsigniertes App-Zertifikat; die Abfrage für Installationen außerhalb des Play Stores bleibt bestehen.</small></p>
+<footer><a href="/datenschutz.html">Datenschutz</a> · <a href="/impressum.html">Impressum</a></footer>
+</main>
+<script>
+fetch('/downloads/android-version.json', {cache:'no-store'}).then(function(r){if(!r.ok)throw new Error();return r.json()}).then(function(v){document.getElementById('version').textContent='Version '+v.versionName+' · Android 10 oder neuer · Internetverbindung erforderlich'}).catch(function(){});
+</script>
+</body></html>

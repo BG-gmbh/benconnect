@@ -94,3 +94,11 @@
   .welcome-hero { grid-template-columns: minmax(0, 1fr); gap: 35px; }
   .learning-scene { width: 100%; max-width: 500px; margin: 0 auto; }
 }
+
+.android-download { margin-top: 24px; }
+.android-download .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; }
+.android-download p { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 8px 0 0; }
+@media (max-width: 700px) {
+  .android-download .btn { width: 100%; }
+  .android-download p { text-align: center; }
+}

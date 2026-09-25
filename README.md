@@ -190,3 +190,9 @@ Empfänger sind in der Admin-Oberfläche hinterlegte **Lehrer-Kontakte** plus Nu
 - `smtp_no_from`: `SMTP_FROM` und `SMTP_USER` sind leer.
 - Auth-Fehler (z. B. `535`): meist falsches Passwort oder kein App-Passwort.
 - Timeout/Verbindungsfehler: Port/Firewall/Provider blockiert SMTP.
+
+## Android-App der Website
+
+Installierbare Android-App und Update-Anleitung: [android/README.md](android/README.md).
+Download-Seite: `/android.html`. Website-Änderungen werden direkt geladen; neue
+APK-Versionen werden mit einem beständigen Release-Schlüssel gebaut.

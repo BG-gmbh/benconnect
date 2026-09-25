@@ -8,6 +8,7 @@
     '<nav class="site-footer-nav">' +
       '<a href="/impressum.html">Impressum</a>' +
       '<a href="/datenschutz.html">Datenschutz</a>' +
+      '<a href="/android.html" data-app-download>Android-App</a>' +
     "</nav>";
   document.body.appendChild(footer);
 })();

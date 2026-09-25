@@ -16,3 +16,7 @@ flutter_app/.flutter-plugins-dependencies
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# Generated Android release downloads
+flutter_app/docs/downloads/*.apk
+flutter_app/docs/downloads/android-version.json

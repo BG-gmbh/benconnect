@@ -1139,3 +1139,6 @@ body .tab-btn:is(.is-active, [aria-selected="true"], [aria-pressed="true"]) {
   color: #fff !important;
 }
 body button:disabled { opacity: .55; cursor: not-allowed; }
+
+/* The installed app already provides its own update entry in the native menu. */
+.android-app [data-app-download] { display: none !important; }

@@ -1,5 +1,7 @@
 (function () {
   var cfg = window.APP_CONFIG || {};
+  cfg.isAndroidApp = /(?:^|\s)BenConnectAndroid\/\d+(?:\.\d+)*(?:\s|$)/.test(navigator.userAgent);
+  document.documentElement.classList.toggle("android-app", cfg.isAndroidApp);
   // Ein Render-Service liefert Frontend und API unter derselben Origin aus
   // (Flask serviert flutter_app/docs direkt), daher same-origin per Default.
   // Ueberschreibbar via window.APP_CONFIG = { apiBaseUrl: "…" }.

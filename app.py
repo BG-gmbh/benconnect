@@ -5,7 +5,7 @@ import os
 import secrets
 import ipaddress
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
@@ -128,6 +128,27 @@ ONBOARDING_MODEL = os.environ.get("ONBOARDING_MODEL", "gpt-4o")
 STATIC_DIR = Path(__file__).resolve().parent / "flutter_app" / "docs"
 app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-nur-lokal-bitte-aendern")
+# Persistent Android sessions survive WebView/process restarts. Regular browser
+# logins remain session cookies; only the native app opts into persistence.
+app.config.update(
+    PERMANENT_SESSION_LIFETIME=timedelta(days=90),
+    SESSION_REFRESH_EACH_REQUEST=True,
+)
+
+
+@app.after_request
+def persist_android_login(response):
+    # Run after login/invitation/setup as well as normal requests, so existing
+    # app sessions are upgraded too. Never recreate a cleared logout session.
+    # The marker selects cookie persistence only; it grants no authentication.
+    if (
+        session.get("user_id")
+        and not session.permanent
+        and re.search(r"(?:^|\s)BenConnectAndroid/\d+(?:\.\d+)*(?:\s|$)", request.user_agent.string)
+    ):
+        session.permanent = True
+    return response
+
 
 # Ein Render-Service liefert Frontend (flutter_app/docs) und API unter
 # derselben Origin aus -> normalerweise same-origin, SameSite=Lax reicht.
