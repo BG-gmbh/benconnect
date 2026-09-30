@@ -90,6 +90,9 @@ def test_delete_chat_subject_data_clears_matching_subjects():
     deleted = {}
 
     class FakeCollection:
+        def find(self, filt):
+            return []
+
         def delete_many(self, filt):
             deleted.setdefault(self.name, []).append(filt)
             return SimpleNamespace(deleted_count=1)

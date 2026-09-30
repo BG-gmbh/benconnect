@@ -648,9 +648,32 @@ def _purge_chat_non_pros_if_no_pro(db, subject):
         )
 
 
+def _archive_chat_ratings(db, subject_filter):
+    """Keep one durable copy per rating, including its appointment context."""
+    for rating in db.chat_ratings.find(subject_filter):
+        appointment = db.chat_appointments.find_one({"_id": rating["subject"]})
+        values = {key: value for key, value in rating.items() if key != "_id"}
+        if appointment:
+            values["appointment_snapshot"] = {
+                key: appointment.get(key)
+                for key in ("appointment", "location", "started_at", "ended_at")
+            }
+        db.appointment_ratings.update_one(
+            {"_id": rating["_id"]}, {"$set": values}, upsert=True,
+        )
+
+
+def _rating_history(db, query):
+    # Include legacy ratings that have not yet been archived, without duplicates.
+    rows = {row["_id"]: row for row in db.chat_ratings.find(query)}
+    rows.update({row["_id"]: row for row in db.appointment_ratings.find(query)})
+    return list(rows.values())
+
+
 def _delete_chat_room_if_empty(db, subject):
     """Raum (Stunde vorbei + alle weg, oder 0 Mitglieder) komplett aufraeumen."""
     if db.chat_presence.count_documents({"subject": subject}) == 0:
+        _archive_chat_ratings(db, {"subject": subject})
         db.chat_messages.delete_many({"subject": subject})
         db.chat_appointments.delete_one({"_id": subject})
         db.chat_ratings.delete_many({"subject": subject})
@@ -658,7 +681,7 @@ def _delete_chat_room_if_empty(db, subject):
 
 
 def delete_chat_subject_data(db, subject=None):
-    """Löscht alle Chat-Daten eines Fachs oder für alle Fächer."""
+    """Löscht flüchtige Chat-Daten; der Bewertungsverlauf bleibt erhalten."""
     if subject is None:
         subject_filter = {}
         room_filter = {}
@@ -666,6 +689,7 @@ def delete_chat_subject_data(db, subject=None):
         subject_filter = {"subject": {"$regex": f"^{re.escape(subject)}(:|$)"}}
         room_filter = {"_id": {"$regex": f"^{re.escape(subject)}(:|$)"}}
 
+    _archive_chat_ratings(db, subject_filter)
     db.chat_presence.delete_many(subject_filter)
     db.chat_messages.delete_many(subject_filter)
     db.chat_appointments.delete_many(room_filter)
@@ -1782,7 +1806,7 @@ def admin_get_chats():
             continue
         if visible_ids is None:
             count = db.chat_messages.count_documents({"subject": subject})
-            rating_n = db.chat_ratings.count_documents({"subject": subject})
+            rating_n = len(_rating_history(db, {"subject": {"$regex": f"^{re.escape(subject)}(:|$)"}}))
             report_n = db.chat_message_reports.count_documents(
                 {"subject": subject, "resolved_at": None}
             )
@@ -1790,9 +1814,10 @@ def admin_get_chats():
             count = db.chat_messages.count_documents(
                 {"subject": subject, "user_id": {"$in": visible_ids}}
             )
-            rating_n = db.chat_ratings.count_documents(
-                {"subject": subject, "user_id": {"$in": visible_ids}}
-            )
+            rating_n = len(_rating_history(db, {
+                "subject": {"$regex": f"^{re.escape(subject)}(:|$)"},
+                "user_id": {"$in": visible_ids},
+            }))
             report_n = db.chat_message_reports.count_documents(
                 {"subject": subject, "resolved_at": None, **report_filter_base}
             )
@@ -1824,9 +1849,7 @@ def admin_list_ratings():
         visible_ids = [u["_id"] for u in db.users.find(user_flt, {"_id": 1})]
         ratings_filter = {"user_id": {"$in": visible_ids}}
 
-    rows = list(
-        db.chat_ratings.find(ratings_filter).sort("created_at", -1).limit(500)
-    )
+    rows = sorted(_rating_history(db, ratings_filter), key=lambda row: row["_id"], reverse=True)[:500]
 
     user_ids = list({row["user_id"] for row in rows})
     users = {
@@ -1834,6 +1857,7 @@ def admin_list_ratings():
         for u in db.users.find({"_id": {"$in": user_ids}}, {"username": 1})
     }
     subjects = list({row["subject"] for row in rows})
+    base_subjects = list({chat_room_key(subject)[1] for subject in subjects})
     appointments = {
         a["_id"]: a
         for a in db.chat_appointments.find(
@@ -1844,7 +1868,7 @@ def admin_list_ratings():
     scores = {
         (s["user_id"], s["subject"]): s
         for s in db.admin_subject_scores.find(
-            {"user_id": {"$in": user_ids}, "subject": {"$in": subjects}},
+            {"user_id": {"$in": user_ids}, "subject": {"$in": base_subjects}},
             {"user_id": 1, "subject": 1, "points": 1, "note": 1},
         )
     }
@@ -1867,13 +1891,15 @@ def admin_list_ratings():
         if user is None:
             # Entspricht dem früheren INNER JOIN users (verwaiste Ratings raus).
             continue
-        appt = appointments.get(row["subject"])
-        score = scores.get((row["user_id"], row["subject"]))
+        appt = row.get("appointment_snapshot", appointments.get(row["subject"]))
+        base_subject = chat_room_key(row["subject"])[1]
+        score = scores.get((row["user_id"], base_subject))
         ratings.append(
             {
-                "subject": row["subject"],
+                "subject": base_subject,
+                "room": row["subject"],
                 "subject_label": CHAT_SUBJECT_LABELS.get(
-                    row["subject"], row["subject"]
+                    base_subject, row["subject"]
                 ),
                 "user_id": str(row["user_id"]),
                 "username": user["username"],
@@ -2710,6 +2736,8 @@ def chat_appointment_post():
         return jsonify(error="permission"), 403
 
     now = utcnow()
+    _archive_chat_ratings(db, {"subject": room_key})
+    db.chat_ratings.delete_many({"subject": room_key})
     db.chat_appointments.update_one(
         {"_id": room_key},
         {
@@ -2831,6 +2859,7 @@ def chat_appointment_rate():
         {"$set": {"rating": rating, "comment": comment, "created_at": utcnow()}},
         upsert=True,
     )
+    _archive_chat_ratings(db, {"subject": room_key, "user_id": oid(uid)})
     return jsonify(ok=True)
 
 
@@ -3192,6 +3221,7 @@ def _erase_user_account(db, user_id):
     db.invite_codes.update_many({"created_by": uid}, {"$set": {"created_by": None}})
     db.chat_presence.delete_many({"user_id": uid})
     db.chat_ratings.delete_many({"user_id": uid})
+    db.appointment_ratings.delete_many({"user_id": uid})
     db.admin_subject_scores.delete_many({"user_id": uid})
     db.learning_places.delete_many({"user_id": uid})
     db.learning_groups.update_many({"member_ids": uid}, {"$pull": {"member_ids": uid}})
@@ -3892,7 +3922,7 @@ def api_account_export():
             "comment": r.get("comment"),
             "created_at": r.get("created_at"),
         }
-        for r in db.chat_ratings.find({"user_id": uid})
+        for r in _rating_history(db, {"user_id": uid})
     ]
     scores = [
         {
