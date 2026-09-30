@@ -28,13 +28,15 @@ def chat():
     return db, users, request
 
 
-def save_group(request):
+def save_group(request, accept=True):
     for name in ("pro", "learner"):
         assert request(name, "/api/chat/join", {"subject": "math"}).status_code == 200
     response = request("learner", "/api/chat/learning-groups", {
         "subject": "math", "name": "  Mathe-Team  ",
     })
     assert response.status_code == 201
+    if accept:
+        assert request("pro", "/api/chat/learning-group-invitations/" + response.json["id"], {"action": "accept"}).status_code == 200
     return "math:group-" + response.json["id"]
 
 
@@ -109,3 +111,70 @@ def test_group_endpoints_require_login():
     client = app_module.app.test_client()
     assert client.get("/api/chat/learning-groups").status_code == 401
     assert client.post("/api/chat/learning-groups", json={}).status_code == 401
+
+
+def test_membership_requires_confirmation_and_invitations_are_private(chat):
+    db, users, request = chat
+    room = save_group(request, accept=False)
+    group = db.learning_groups.find_one()
+    assert group["member_ids"] == [users["learner"]]
+    assert group["pending_member_ids"] == [users["pro"]]
+    assert request("pro", "/api/chat/learning-groups").json["groups"] == []
+    assert request("pro", "/api/chat/join", {"subject": room}).status_code == 400
+    assert request("learner", "/api/chat/learning-group-invitations").json["invitations"] == []
+    assert request("outsider", "/api/chat/learning-group-invitations").json["invitations"] == []
+    invitation = request("pro", "/api/chat/learning-group-invitations").json["invitations"][0]
+    assert invitation["name"] == "Mathe-Team"
+    assert invitation["popup_remaining_ms"] is None
+    assert invitation["invited_by"] == "learner"
+    url = "/api/chat/learning-group-invitations/" + invitation["id"]
+    for action in ("seen", "accept", "decline"):
+        assert request("outsider", url, {"action": action}).status_code == 404
+    assert request("pro", url, {"action": "accept"}).status_code == 200
+    assert request("pro", url, {"action": "accept"}).status_code == 200
+    assert request("pro", "/api/chat/learning-group-invitations").json["invitations"] == []
+    assert request("pro", "/api/chat/join", {"subject": room}).status_code == 200
+    assert db.learning_groups.find_one()["member_ids"].count(users["pro"]) == 1
+
+
+def test_popup_expires_after_thirty_seconds_but_invitation_remains(chat):
+    from datetime import datetime, timezone
+    db, users, request = chat
+    save_group(request, accept=False)
+    group = db.learning_groups.find_one()
+    url = "/api/chat/learning-group-invitations/" + str(group["_id"])
+    seen = request("pro", url, {"action": "seen"})
+    assert 29000 <= seen.json["popup_remaining_ms"] <= 30000
+    field = "invitation_popup_started." + str(users["pro"])
+    started = datetime.now(timezone.utc).timestamp() - 31
+    db.learning_groups.update_one({"_id": group["_id"]}, {"$set": {field: started}})
+    assert request("pro", url, {"action": "seen"}).json["popup_remaining_ms"] == 0
+    invitations = request("pro", "/api/chat/learning-group-invitations").json["invitations"]
+    assert len(invitations) == 1
+    assert invitations[0]["popup_remaining_ms"] == 0
+    assert db.learning_groups.find_one()["invitation_popup_started"][str(users["pro"])] == started
+    assert request("pro", url, {"action": "accept"}).status_code == 200
+
+
+def test_declining_does_not_add_membership_and_cannot_be_reversed(chat):
+    db, users, request = chat
+    save_group(request, accept=False)
+    group = db.learning_groups.find_one()
+    url = "/api/chat/learning-group-invitations/" + str(group["_id"])
+    assert request("pro", url, {"action": "decline"}).status_code == 200
+    assert request("pro", url, {"action": "accept"}).status_code == 404
+    assert request("pro", "/api/chat/learning-group-invitations").json["invitations"] == []
+    assert request("pro", "/api/chat/learning-groups").json["groups"] == []
+
+
+def test_old_groups_keep_existing_membership(chat):
+    db, users, request = chat
+    db.learning_groups.insert_one({"name": "Old", "subject": "math", "member_ids": [users["pro"]]})
+    assert len(request("pro", "/api/chat/learning-groups").json["groups"]) == 1
+    assert request("pro", "/api/chat/learning-group-invitations").json["invitations"] == []
+
+
+def test_invitation_routes_require_authentication():
+    client = app_module.app.test_client()
+    assert client.get("/api/chat/learning-group-invitations").status_code == 401
+    assert client.post("/api/chat/learning-group-invitations/" + str(ObjectId()), json={"action": "accept"}).status_code == 401

@@ -1142,3 +1142,18 @@ body button:disabled { opacity: .55; cursor: not-allowed; }
 
 /* The installed app already provides its own update entry in the native menu. */
 .android-app [data-app-download] { display: none !important; }
+
+/* Lerngruppen-Einladungen bleiben nach dem Popup in der Glocke erreichbar. */
+.has-learning-notifications .site-header { padding-left: max(4.5rem, 2.75rem); }
+.learning-notifications { position: fixed; top: 12px; left: 12px; z-index: 1100; }
+.notification-bell { position: relative; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--accent); cursor: pointer; box-shadow: 0 3px 12px #203b3420; }
+.notification-count { position: absolute; top: -5px; right: -7px; min-width: 20px; padding: 1px 5px; border-radius: 12px; background: var(--danger); color: white; font-size: 12px; font-weight: 700; }
+.notification-inbox, .notification-popups { position: absolute; top: 54px; left: 0; width: min(380px, calc(100vw - 24px)); max-height: calc(100dvh - 90px); overflow-y: auto; overscroll-behavior: contain; }
+.notification-inbox { padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 32px #203b3430; }
+.notification-inbox h2 { font-size: 1rem; margin: 0 0 12px; }
+.notification-card { padding: 16px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: 0 4px 16px #203b3420; overflow-wrap: anywhere; }
+.notification-card h3 { margin: 0 0 6px; font-size: 1rem; }
+.notification-card p { margin: 0 0 12px; font-size: .9rem; }
+.notification-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.notification-card .notification-error { color: var(--danger); margin: 12px 0 0; }
+.learning-notifications [hidden] { display: none !important; }

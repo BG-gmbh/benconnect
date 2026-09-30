@@ -184,6 +184,7 @@ def ensure_indexes():
     )
 
     db.learning_groups.create_index("member_ids", name="idx_learning_groups_members")
+    db.learning_groups.create_index("pending_member_ids", name="idx_learning_groups_invitations")
 
     # chat_presence: PRIMARY KEY (subject, user_id).
     db.chat_presence.create_index(

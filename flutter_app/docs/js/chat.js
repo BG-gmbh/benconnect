@@ -897,7 +897,7 @@
     }).then(function (res) {
       if (currentSubject !== room) return;
       if (!res.ok) throw new Error("save_failed");
-      status.textContent = "Lerngruppe gespeichert. Alle aktuellen Mitglieder können sie beim Chat erstellen auswählen.";
+      status.textContent = "Lerngruppe gespeichert. Die anderen Chatmitglieder erhalten eine Einladung und müssen ihre Teilnahme bestätigen.";
     }).catch(function () {
       if (currentSubject !== room) return;
       btn.disabled = false;

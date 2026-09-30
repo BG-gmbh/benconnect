@@ -2426,10 +2426,74 @@ def chat_learning_groups():
     if uid not in member_ids:
         return jsonify(error="not_in_room"), 403
     group_id = db.learning_groups.insert_one({
-        "name": name.strip(), "subject": subject, "member_ids": member_ids,
+        "name": name.strip(), "subject": subject, "member_ids": [uid],
+        "pending_member_ids": [member_id for member_id in member_ids if member_id != uid],
         "created_by": uid, "created_at": utcnow(),
     }).inserted_id
     return jsonify(ok=True, id=str(group_id)), 201
+
+
+def _learning_group_popup_remaining(group, uid):
+    started = group.get("invitation_popup_started", {}).get(str(uid))
+    if started is None:
+        return None
+    return max(0, int((started + 30 - datetime.now(timezone.utc).timestamp()) * 1000))
+
+
+@app.route("/api/chat/learning-group-invitations", methods=["GET"])
+@login_required_api
+def learning_group_invitations():
+    db = get_db()
+    uid = oid(session["user_id"])
+    invitations = []
+    for group in db.learning_groups.find({"pending_member_ids": uid}).sort("created_at", -1):
+        if not user_may_access_subject(db, uid, group["subject"]):
+            continue
+        creator = db.users.find_one({"_id": group.get("created_by")}, {"username": 1})
+        invitations.append({
+            "id": str(group["_id"]), "name": group["name"],
+            "subject_label": CHAT_SUBJECT_LABELS[group["subject"]],
+            "invited_by": creator["username"] if creator else "Gelöschtes Konto",
+            "popup_remaining_ms": _learning_group_popup_remaining(group, uid),
+        })
+    return jsonify(invitations=invitations)
+
+
+@app.route("/api/chat/learning-group-invitations/<string:group_id>", methods=["POST"])
+@login_required_api
+def learning_group_invitation_respond(group_id):
+    db = get_db()
+    uid = oid(session["user_id"])
+    group_oid = oid(group_id)
+    action = (request.get_json(silent=True) or {}).get("action")
+    if action not in ("seen", "accept", "decline"):
+        return jsonify(error="invalid_action"), 400
+    group = db.learning_groups.find_one({"_id": group_oid, "pending_member_ids": uid})
+    if not group:
+        # A repeated confirmation (e.g. from another tab) is harmless.
+        if action == "accept" and db.learning_groups.find_one({"_id": group_oid, "member_ids": uid}):
+            return jsonify(ok=True)
+        return jsonify(error="not_found"), 404
+    if action != "decline" and not user_may_access_subject(db, uid, group["subject"]):
+        return jsonify(error="forbidden"), 403
+    query = {"_id": group_oid, "pending_member_ids": uid}
+    popup_field = f"invitation_popup_started.{uid}"
+    if action == "seen":
+        db.learning_groups.update_one(
+            {**query, popup_field: {"$exists": False}},
+            {"$set": {popup_field: datetime.now(timezone.utc).timestamp()}},
+        )
+        group = db.learning_groups.find_one(query)
+        if not group:
+            return jsonify(error="not_found"), 404
+        return jsonify(ok=True, popup_remaining_ms=_learning_group_popup_remaining(group, uid))
+    update = {"$pull": {"pending_member_ids": uid}, "$unset": {popup_field: ""}}
+    if action == "accept":
+        update["$addToSet"] = {"member_ids": uid}
+    result = db.learning_groups.update_one(query, update)
+    if not result.matched_count:
+        return jsonify(error="already_answered"), 409
+    return jsonify(ok=True)
 
 
 @app.route("/api/chat/rooms", methods=["GET"])
@@ -3131,8 +3195,15 @@ def _erase_user_account(db, user_id):
     db.admin_subject_scores.delete_many({"user_id": uid})
     db.learning_places.delete_many({"user_id": uid})
     db.learning_groups.update_many({"member_ids": uid}, {"$pull": {"member_ids": uid}})
+    db.learning_groups.update_many(
+        {"pending_member_ids": uid},
+        {"$pull": {"pending_member_ids": uid}, "$unset": {f"invitation_popup_started.{uid}": ""}},
+    )
     db.learning_groups.update_many({"created_by": uid}, {"$set": {"created_by": None}})
-    db.learning_groups.delete_many({"member_ids": {"$size": 0}})
+    db.learning_groups.delete_many({
+        "member_ids": {"$size": 0},
+        "$or": [{"pending_member_ids": {"$size": 0}}, {"pending_member_ids": {"$exists": False}}],
+    })
     db.api_tokens.delete_many({"user_id": uid})
     db.users.delete_one({"_id": uid})
 

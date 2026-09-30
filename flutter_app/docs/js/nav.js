@@ -59,6 +59,12 @@
     })
     .then(function (data) {
       updateMobileMenu(true);
+      if (!document.querySelector('script[data-learning-notifications]')) {
+        var notifications = document.createElement("script");
+        notifications.src = "/js/notifications.js";
+        notifications.setAttribute("data-learning-notifications", "");
+        document.body.appendChild(notifications);
+      }
       var welcomeActions = document.getElementById("welcome-actions");
       if (welcomeActions) {
         welcomeActions.innerHTML = '<a class="btn" href="/dashboard.html">Zu meinem Dashboard <span aria-hidden="true">↗</span></a><a class="text-link" href="/chat.html">Lerngruppe öffnen <span aria-hidden="true">→</span></a>';
