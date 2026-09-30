@@ -201,6 +201,10 @@ def ensure_indexes():
 
     # chat_appointments.subject war PRIMARY KEY -> als _id gespeichert.
 
+    db.rating_tasks.create_index([("session_id", ASCENDING), ("user_id", ASCENDING)],
+                                 unique=True, name="uq_rating_tasks_session_user")
+    db.rating_tasks.create_index("user_id", name="idx_rating_tasks_user")
+
     # chat_ratings: PRIMARY KEY (subject, user_id).
     db.appointment_ratings.create_index(
         [("user_id", ASCENDING), ("created_at", ASCENDING)],

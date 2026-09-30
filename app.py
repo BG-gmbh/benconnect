@@ -648,6 +648,74 @@ def _purge_chat_non_pros_if_no_pro(db, subject):
         )
 
 
+def _ensure_rating_tasks(db, room):
+    """Preserve eligible participants' rating tasks before a finished chat disappears."""
+    appointment = db.chat_appointments.find_one({"_id": room})
+    if not appointment or not appointment.get("ended"):
+        return
+    if not appointment.get("session_id"):
+        db.chat_appointments.update_one(
+            {"_id": room, "session_id": {"$exists": False}},
+            {"$set": {"session_id": ObjectId()}},
+        )
+        appointment = db.chat_appointments.find_one({"_id": room})
+        if not appointment or not appointment.get("session_id"):
+            return
+    subject = chat_room_key(room)[1]
+    for presence in db.chat_presence.find({"subject": room}):
+        uid = presence["user_id"]
+        if _user_level_for_subject(db, uid, subject) != "pro":
+            continue
+        existing = db.chat_ratings.find_one({"subject": room, "user_id": uid})
+        db.rating_tasks.update_one(
+            {"session_id": appointment["session_id"], "user_id": uid},
+            {"$setOnInsert": {
+                "_id": existing["_id"] if existing else ObjectId(),
+                "subject": room,
+                "created_at": appointment.get("ended_at") or utcnow(),
+                "appointment_snapshot": {key: appointment.get(key) for key in
+                    ("appointment", "location", "started_at", "ended_at")},
+            }}, upsert=True,
+        )
+
+
+def _save_rating_task(db, task, rating, comment):
+    values = {
+        "subject": task["subject"], "user_id": task["user_id"],
+        "rating": rating, "comment": comment, "created_at": utcnow(),
+        "appointment_snapshot": task["appointment_snapshot"],
+    }
+    db.appointment_ratings.update_one({"_id": task["_id"]}, {"$set": values}, upsert=True)
+    if db.chat_appointments.find_one({"_id": task["subject"], "session_id": task["session_id"]}):
+        db.chat_ratings.update_one(
+            {"subject": task["subject"], "user_id": task["user_id"]},
+            {"$set": values, "$setOnInsert": {"_id": task["_id"]}}, upsert=True,
+        )
+
+
+def _parse_rating(data):
+    if not isinstance(data, dict):
+        return None, None, "invalid_rating"
+    raw = data.get("rating")
+    if isinstance(raw, bool) or not isinstance(raw, (int, str)):
+        return None, None, "invalid_rating"
+    try:
+        rating = int(raw)
+    except (ValueError, TypeError):
+        return None, None, "invalid_rating"
+    if not 1 <= rating <= 5:
+        return None, None, "invalid_rating"
+    comment = data.get("comment", "")
+    if not isinstance(comment, str):
+        return None, None, "invalid_comment"
+    comment = comment.strip()
+    if len(comment) > 2000:
+        return None, None, "comment_too_long"
+    if rating < 4 and not comment:
+        return None, None, "need_comment"
+    return rating, comment, None
+
+
 def _archive_chat_ratings(db, subject_filter):
     """Keep one durable copy per rating, including its appointment context."""
     for rating in db.chat_ratings.find(subject_filter):
@@ -688,6 +756,8 @@ def delete_chat_subject_data(db, subject=None):
         subject_filter = {"subject": {"$regex": f"^{re.escape(subject)}(:|$)"}}
         room_filter = {"_id": {"$regex": f"^{re.escape(subject)}(:|$)"}}
 
+    for room in db.chat_appointments.distinct("_id", room_filter):
+        _ensure_rating_tasks(db, room)
     _archive_chat_ratings(db, subject_filter)
     db.chat_presence.delete_many(subject_filter)
     db.chat_messages.delete_many(subject_filter)
@@ -2417,6 +2487,46 @@ def admin_invite_delete(code):
     return jsonify(ok=True)
 
 
+@app.route("/api/ratings", methods=["GET"])
+@login_required_api
+def my_ratings():
+    db = get_db()
+    uid = oid(session["user_id"])
+    # Backfill still-active appointments from before the notification feature.
+    for room in db.chat_presence.distinct("subject", {"user_id": uid}):
+        _ensure_rating_tasks(db, room)
+    history = {row["_id"]: row for row in _rating_history(db, {"user_id": uid})}
+
+    def payload(row):
+        snapshot = row.get("appointment_snapshot") or {}
+        subject = chat_room_key(row["subject"])[1]
+        return {
+            "id": str(row["_id"]), "subject_label": CHAT_SUBJECT_LABELS.get(subject, subject),
+            "appointment": snapshot.get("appointment"), "location": snapshot.get("location"),
+            "rating": row.get("rating"), "comment": row.get("comment", ""),
+            "created_at": row.get("created_at"),
+        }
+
+    pending = [payload(task) for task in db.rating_tasks.find({"user_id": uid}).sort("_id", -1)
+               if task["_id"] not in history]
+    rated = [payload(row) for row in sorted(history.values(), key=lambda row: row["_id"], reverse=True)]
+    return jsonify(open=pending, rated=rated)
+
+
+@app.route("/api/ratings/<string:task_id>", methods=["POST"])
+@login_required_api
+def submit_my_rating(task_id):
+    db = get_db()
+    task = db.rating_tasks.find_one({"_id": oid(task_id), "user_id": oid(session["user_id"])})
+    if not task:
+        return jsonify(error="not_found"), 404
+    rating, comment, error = _parse_rating(request.get_json(silent=True) or {})
+    if error:
+        return jsonify(error=error), 400
+    _save_rating_task(db, task, rating, comment)
+    return jsonify(ok=True)
+
+
 @app.route("/api/chat/learning-groups", methods=["GET", "POST"])
 @login_required_api
 def chat_learning_groups():
@@ -2734,6 +2844,7 @@ def chat_appointment_post():
         return jsonify(error="permission"), 403
 
     now = utcnow()
+    _ensure_rating_tasks(db, room_key)
     _archive_chat_ratings(db, {"subject": room_key})
     db.chat_ratings.delete_many({"subject": room_key})
     db.chat_appointments.update_one(
@@ -2741,6 +2852,7 @@ def chat_appointment_post():
         {
             "$set": {
                 "appointment": appointment,
+                "session_id": ObjectId(),
                 "location": location,
                 "created_by": oid(uid),
                 "updated_at": now,
@@ -2815,6 +2927,7 @@ def chat_appointment_end():
         {"_id": room_key},
         {"$set": {"ended": 1, "ended_at": now, "updated_at": now}},
     )
+    _ensure_rating_tasks(db, room_key)
     db.chat_messages.delete_many({"subject": room_key})
     return jsonify(ok=True, cleared=True)
 
@@ -2826,15 +2939,9 @@ def chat_appointment_rate():
     room_key, base_subject = chat_room_key(data.get("subject"))
     if not room_key:
         return jsonify(error="invalid_subject"), 400
-    try:
-        rating = int(data.get("rating"))
-    except (TypeError, ValueError):
-        return jsonify(error="invalid_rating"), 400
-    if rating < 1 or rating > 5:
-        return jsonify(error="invalid_rating"), 400
-    comment = (data.get("comment") or "").strip()
-    if rating < 4 and not comment:
-        return jsonify(error="need_comment"), 400
+    rating, comment, error = _parse_rating(data)
+    if error:
+        return jsonify(error=error), 400
     db = get_db()
     uid = session["user_id"]
     if not _user_may_access_chat_room(db, uid, room_key):
@@ -2852,12 +2959,10 @@ def chat_appointment_rate():
     )
     if not in_room:
         return jsonify(error="not_in_room"), 403
-    db.chat_ratings.update_one(
-        {"subject": room_key, "user_id": oid(uid)},
-        {"$set": {"rating": rating, "comment": comment, "created_at": utcnow()}},
-        upsert=True,
-    )
-    _archive_chat_ratings(db, {"subject": room_key, "user_id": oid(uid)})
+    _ensure_rating_tasks(db, room_key)
+    appointment = db.chat_appointments.find_one({"_id": room_key})
+    task = db.rating_tasks.find_one({"session_id": appointment["session_id"], "user_id": oid(uid)})
+    _save_rating_task(db, task, rating, comment)
     return jsonify(ok=True)
 
 
@@ -2924,6 +3029,7 @@ def chat_leave():
         {"subject": subject, "user_id": oid(uid)}, {"level": 1}
     )
     was_pro = prow is not None and prow.get("level") == "pro"
+    _ensure_rating_tasks(db, subject)
     db.chat_presence.delete_one({"subject": subject, "user_id": oid(uid)})
     if was_pro:
         _purge_chat_non_pros_if_no_pro(db, subject)
@@ -3220,6 +3326,7 @@ def _erase_user_account(db, user_id):
     db.chat_presence.delete_many({"user_id": uid})
     db.chat_ratings.delete_many({"user_id": uid})
     db.appointment_ratings.delete_many({"user_id": uid})
+    db.rating_tasks.delete_many({"user_id": uid})
     db.admin_subject_scores.delete_many({"user_id": uid})
     db.learning_places.delete_many({"user_id": uid})
     db.learning_groups.update_many({"member_ids": uid}, {"$pull": {"member_ids": uid}})

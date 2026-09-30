@@ -89,3 +89,86 @@ def test_archive_keeps_admin_school_visibility(ratings):
     with patch.object(app_module, '_has_full_read_access', return_value=False), \
          patch.object(app_module, 'admin_school', return_value='Other school'):
         assert client.get('/api/admin/ratings').json['ratings'] == []
+
+
+@pytest.mark.parametrize('cleanup', ['leave', 'clear'])
+def test_open_ratings_can_be_submitted_after_chat_is_gone(ratings, cleanup):
+    db, uid, client = ratings
+    if cleanup == 'leave':
+        client.post('/api/chat/leave', json={'subject': 'math'})
+    else:
+        client.post('/api/admin/chat-clear', json={})
+    assert db.chat_appointments.count_documents({}) == 0
+    data = client.get('/api/ratings').json
+    assert len(data['open']) == 1
+    assert data['rated'] == []
+    task = data['open'][0]
+    assert task['location'] == 'Bibliothek'
+    assert client.post('/api/ratings/' + task['id'], json={'rating': 4, 'comment': 'Gut'}).status_code == 200
+    data = client.get('/api/ratings').json
+    assert data['open'] == []
+    assert len(data['rated']) == 1
+    assert data['rated'][0]['rating'] == 4
+    assert db.chat_ratings.count_documents({}) == 0
+    assert client.get('/api/admin/ratings').json['ratings'][0]['duration_seconds'] == 2700
+
+
+def test_chat_and_bell_ratings_stay_in_sync_without_duplicates(ratings):
+    db, uid, client = ratings
+    task = client.get('/api/ratings').json['open'][0]
+    assert len(client.get('/api/ratings').json['open']) == 1
+    assert client.post('/api/ratings/' + task['id'], json={'rating': 5}).status_code == 200
+    assert client.get('/api/chat/appointment?subject=math').json['your_rating']['rating'] == 5
+    rate(client, 4)
+    data = client.get('/api/ratings').json
+    assert data['open'] == []
+    assert len(data['rated']) == 1
+    assert data['rated'][0]['rating'] == 4
+    assert db.appointment_ratings.count_documents({}) == 1
+
+
+def test_old_task_does_not_change_new_appointment(ratings):
+    db, uid, client = ratings
+    old = client.get('/api/ratings').json['open'][0]
+    client.post('/api/chat/appointment', json={'subject': 'math', 'appointment': '2026-10-04 10:00', 'location': 'Aula'})
+    client.post('/api/chat/appointment/start', json={'subject': 'math'})
+    client.post('/api/chat/appointment/end', json={'subject': 'math'})
+    data = client.get('/api/ratings').json
+    assert len(data['open']) == 2
+    assert client.post('/api/ratings/' + old['id'], json={'rating': 2, 'comment': 'Zu laut'}).status_code == 200
+    assert client.get('/api/chat/appointment?subject=math').json['your_rating'] is None
+    assert client.get('/api/ratings').json['open'][0]['location'] == 'Aula'
+    rate(client, 5)
+    data = client.get('/api/ratings').json
+    assert data['open'] == []
+    assert sorted(row['rating'] for row in data['rated']) == [2, 5]
+
+
+def test_only_task_owner_can_rate_and_see_their_history(ratings):
+    db, uid, client = ratings
+    task = client.get('/api/ratings').json['open'][0]
+    other = db.users.insert_one({'username': 'Other', 'role': 'dev', 'level_math': 'pro'}).inserted_id
+    with client.session_transaction() as session:
+        session.update(user_id=str(other), username='Other')
+    assert client.get('/api/ratings').json == {'open': [], 'rated': []}
+    assert client.post('/api/ratings/' + task['id'], json={'rating': 5}).status_code == 404
+    with client.session_transaction() as session:
+        session.clear()
+    assert client.get('/api/ratings').status_code == 401
+    assert client.post('/api/ratings/' + task['id'], json={'rating': 5}).status_code == 401
+
+
+@pytest.mark.parametrize('data', [{'rating': 3}, {'rating': 0}, {'rating': 6}, {'rating': True}, {'rating': 2.5}, {'rating': 5, 'comment': []}])
+def test_bell_rating_validation_keeps_task_open(ratings, data):
+    db, uid, client = ratings
+    task = client.get('/api/ratings').json['open'][0]
+    assert client.post('/api/ratings/' + task['id'], json=data).status_code == 400
+    assert len(client.get('/api/ratings').json['open']) == 1
+
+
+def test_pending_tasks_are_removed_with_account(ratings):
+    db, uid, client = ratings
+    client.get('/api/ratings')
+    assert db.rating_tasks.count_documents({'user_id': uid}) == 1
+    app_module._erase_user_account(db, uid)
+    assert db.rating_tasks.count_documents({'user_id': uid}) == 0

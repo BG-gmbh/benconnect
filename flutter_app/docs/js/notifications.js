@@ -4,6 +4,11 @@
   var loading = false;
   var revision = 0;
   var stopped = false;
+  var ratingData = { open: [], rated: [] };
+  var ratingNodes = {};
+  var ratingsLoading = false;
+  var ratingsRevision = 0;
+  var ratedKey = "";
   var root = document.createElement("aside");
   root.id = "learning-notifications";
   root.className = "learning-notifications";
@@ -11,8 +16,11 @@
   root.innerHTML = '<button type="button" class="notification-bell" aria-label="Benachrichtigungen" aria-expanded="false" aria-controls="notification-inbox">' +
     '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>' +
     '<span class="notification-count" hidden></span></button>' +
-    '<section id="notification-inbox" class="notification-inbox" aria-label="Offene Einladungen" hidden>' +
-    '<h2>Einladungen zu Lerngruppen</h2><div class="notification-list"></div></section>' +
+    '<section id="notification-inbox" class="notification-inbox" aria-label="Einladungen und Bewertungen" hidden>' +
+    '<h2>Einladungen zu Lerngruppen</h2><div class="notification-list"></div>' +
+    '<h2 class="rating-section-title">Offene Bewertungen <span class="open-rating-count"></span></h2>' +
+    '<p class="rating-load-error" role="status"></p><div class="open-rating-list"></div>' +
+    '<details class="rated-section"><summary>Bewertet <span class="rated-count"></span></summary><div class="rated-list"></div></details></section>' +
     '<div class="notification-popups" aria-live="polite" aria-relevant="additions"></div>' +
     '<p class="sr-only notification-feedback" role="status"></p>';
   document.body.appendChild(root);
@@ -23,6 +31,144 @@
   var list = root.querySelector(".notification-list");
   var popups = root.querySelector(".notification-popups");
   var feedback = root.querySelector(".notification-feedback");
+
+  var openRatings = root.querySelector(".open-rating-list");
+  var ratedList = root.querySelector(".rated-list");
+
+  function updateBadge() {
+    var invitations = Object.keys(entries).length;
+    var count = invitations + ratingData.open.length;
+    badge.textContent = String(count);
+    badge.hidden = !count;
+    bell.setAttribute("aria-label", "Benachrichtigungen: " + invitations +
+      " offene Einladungen, " + ratingData.open.length + " offene Bewertungen");
+  }
+
+  function ratingCard(row, completed) {
+    var item = document.createElement("article");
+    item.className = "notification-card rating-card";
+    var title = document.createElement("h3");
+    title.textContent = row.subject_label || "Termin";
+    var description = document.createElement("p");
+    description.textContent = [row.appointment, row.location].filter(Boolean).join(" · ") || "Abgeschlossener Termin";
+    item.append(title, description);
+    if (completed) {
+      var result = document.createElement("p");
+      result.textContent = row.rating + "/5 Sterne" + (row.comment ? " · " + row.comment : "");
+      item.appendChild(result);
+      return item;
+    }
+    var form = document.createElement("form");
+    var selectLabel = document.createElement("label");
+    selectLabel.textContent = "Sterne";
+    var select = document.createElement("select");
+    select.name = "rating";
+    for (var n = 5; n >= 1; n--) {
+      var option = document.createElement("option");
+      option.value = String(n);
+      option.textContent = n + (n === 1 ? " Stern" : " Sterne");
+      select.appendChild(option);
+    }
+    selectLabel.appendChild(select);
+    var commentLabel = document.createElement("label");
+    var hint = document.createElement("span");
+    var comment = document.createElement("textarea");
+    comment.name = "comment";
+    comment.rows = 2;
+    comment.maxLength = 2000;
+    commentLabel.append(hint, comment);
+    function updateHint() {
+      comment.required = Number(select.value) < 4;
+      hint.textContent = comment.required ? "Kommentar (Pflicht bei 1–3 Sternen)" : "Kommentar (optional)";
+    }
+    select.addEventListener("change", updateHint);
+    updateHint();
+    var error = document.createElement("p");
+    error.className = "notification-error";
+    error.setAttribute("role", "alert");
+    var submit = document.createElement("button");
+    submit.type = "submit";
+    submit.className = "btn btn-small";
+    submit.textContent = "Bewertung speichern";
+    form.append(selectLabel, commentLabel, error, submit);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (submit.disabled) return;
+      var stars = Number(select.value);
+      var text = comment.value.trim();
+      if (stars < 4 && !text) {
+        error.textContent = "Bei 1–3 Sternen bitte einen Kommentar eingeben.";
+        comment.focus();
+        return;
+      }
+      error.textContent = "";
+      submit.disabled = select.disabled = comment.disabled = true;
+      ratingsRevision++;
+      api("/api/ratings/" + encodeURIComponent(row.id), {rating: stars, comment: text}).then(function () {
+        ratingsRevision++;
+        ratingData.open = ratingData.open.filter(function (r) { return r.id !== row.id; });
+        ratingData.rated = ratingData.rated.filter(function (r) { return r.id !== row.id; });
+        ratingData.rated.unshift(Object.assign({}, row, {rating: stars, comment: text}));
+        renderRatings();
+        feedback.textContent = "Bewertung gespeichert. Du findest sie unter Bewertet.";
+        document.dispatchEvent(new CustomEvent("appointment-rating-saved"));
+      }).catch(function () {
+        ratingsRevision++;
+        error.textContent = "Bewertung konnte nicht gespeichert werden. Bitte erneut versuchen.";
+      }).finally(function () { submit.disabled = select.disabled = comment.disabled = false; });
+    });
+    item.appendChild(form);
+    return item;
+  }
+
+  function renderRatings() {
+    var focused = openRatings.contains(document.activeElement);
+    var empty = openRatings.querySelector(".rating-empty");
+    if (empty) empty.remove();
+    var ids = {};
+    ratingData.open.forEach(function (row) {
+      ids[row.id] = true;
+      if (!ratingNodes[row.id]) {
+        ratingNodes[row.id] = ratingCard(row, false);
+        openRatings.appendChild(ratingNodes[row.id]);
+      }
+    });
+    Object.keys(ratingNodes).forEach(function (id) {
+      if (!ids[id]) { ratingNodes[id].remove(); delete ratingNodes[id]; }
+    });
+    if (!ratingData.open.length) {
+      var none = document.createElement("p");
+      none.className = "rating-empty";
+      none.textContent = "Keine offenen Bewertungen.";
+      openRatings.appendChild(none);
+    }
+    root.querySelector(".open-rating-count").textContent = "(" + ratingData.open.length + ")";
+    root.querySelector(".rated-count").textContent = "(" + ratingData.rated.length + ")";
+    var key = JSON.stringify(ratingData.rated);
+    if (key !== ratedKey) {
+      ratedKey = key;
+      ratedList.replaceChildren();
+      ratingData.rated.forEach(function (row) { ratedList.appendChild(ratingCard(row, true)); });
+      if (!ratingData.rated.length) ratedList.textContent = "Noch keine Bewertung abgegeben.";
+    }
+    updateBadge();
+    if (focused && !openRatings.contains(document.activeElement)) root.querySelector(".rated-section summary").focus();
+  }
+
+  function loadRatings() {
+    if (ratingsLoading || stopped || document.hidden) return;
+    ratingsLoading = true;
+    var snapshot = ratingsRevision;
+    api("/api/ratings").then(function (data) {
+      if (stopped || snapshot !== ratingsRevision) return;
+      if (!Array.isArray(data.open) || !Array.isArray(data.rated)) throw new Error("invalid_response");
+      ratingData = data;
+      root.querySelector(".rating-load-error").textContent = "";
+      renderRatings();
+    }).catch(function () {
+      root.querySelector(".rating-load-error").textContent = "Bewertungen konnten nicht geladen werden. Erneuter Versuch folgt automatisch.";
+    }).finally(function () { ratingsLoading = false; });
+  }
 
   function api(path, body) {
     var cfg = window.APP_CONFIG || {};
@@ -99,9 +245,7 @@
     list.replaceChildren();
     popups.replaceChildren();
     var ids = Object.keys(entries);
-    badge.textContent = String(ids.length);
-    badge.hidden = !ids.length;
-    bell.setAttribute("aria-label", "Benachrichtigungen: " + ids.length + " offene Einladungen");
+    updateBadge();
     ids.forEach(function (id) {
       var entry = entries[id];
       list.appendChild(card(entry));
@@ -181,7 +325,10 @@
     }).finally(function () { loading = false; });
   }
   render();
-  var pollTimer = setInterval(load, 5000);
-  document.addEventListener("visibilitychange", function () { if (!document.hidden) load(); });
+  var pollTimer = setInterval(function () { load(); loadRatings(); }, 5000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) { load(); loadRatings(); } });
+  document.addEventListener("appointment-rating-saved", loadRatings);
+  renderRatings();
   load();
+  loadRatings();
 })();

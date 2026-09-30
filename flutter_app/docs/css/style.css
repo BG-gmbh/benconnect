@@ -1157,3 +1157,10 @@ body button:disabled { opacity: .55; cursor: not-allowed; }
 .notification-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .notification-card .notification-error { color: var(--danger); margin: 12px 0 0; }
 .learning-notifications [hidden] { display: none !important; }
+.notification-inbox .rating-section-title { margin-top: 20px; }
+.rated-section { margin-top: 20px; }
+.rated-section summary { cursor: pointer; font-weight: 700; margin-bottom: 12px; }
+.rating-card form, .rating-card label { display: grid; gap: 8px; }
+.rating-card form { gap: 12px; }
+.rating-card textarea { resize: vertical; }
+.rating-load-error:empty { display: none; }

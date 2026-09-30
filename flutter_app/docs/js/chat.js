@@ -761,7 +761,7 @@
         }
         return;
       }
-      loadAppointment();
+      document.dispatchEvent(new CustomEvent("appointment-rating-saved"));
     });
   }
 
@@ -924,6 +924,7 @@
   });
 
   $("chat-send-form").addEventListener("submit", sendMessage);
+  document.addEventListener("appointment-rating-saved", loadAppointment);
 
   var navigatingViaNav = false;
   document.querySelectorAll("header nav a").forEach(function (a) {

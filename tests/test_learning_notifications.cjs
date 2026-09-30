@@ -15,6 +15,19 @@ async function setup(t, options = {}) {
   const clock = FakeTimers.withGlobal(window).install({now: 100000, toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval']});
   const state = options.state || {pending: true, seen: null, actions: [], fail: false};
   window.fetch = async (url, init) => {
+    if (url === '/api/ratings') {
+      const data = state.ratings || {open: [], rated: []};
+      return {ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(data))};
+    }
+    if (url.startsWith('/api/ratings/')) {
+      if (state.fail) throw new Error('offline');
+      const id = url.split('/').pop();
+      const values = JSON.parse(init.body);
+      const row = state.ratings.open.find(r => r.id === id);
+      state.ratings.open = state.ratings.open.filter(r => r.id !== id);
+      state.ratings.rated.unshift({...row, ...values});
+      return {ok: true, status: 200, json: async () => ({ok: true})};
+    }
     const action = init.body && JSON.parse(init.body).action;
     let data;
     if (action) {
@@ -101,4 +114,63 @@ test('polling does not replace focused buttons and Escape closes the inbox', asy
   window.document.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Escape'}));
   assert.equal($('#notification-inbox').hidden, true);
   assert.equal(window.document.activeElement, $('.notification-bell'));
+});
+
+function ratingState() {
+  return {pending: false, seen: null, actions: [], fail: false, ratings: {
+    open: [{id: 'task1', subject_label: 'Mathe', appointment: '2026-10-01 10:00', location: 'Bibliothek'}],
+    rated: [{id: 'old', subject_label: 'Deutsch', rating: 4, comment: 'Gut'}],
+  }};
+}
+
+test('open ratings count towards the bell and move to Bewertet after saving', async t => {
+  const state = ratingState();
+  const {window, clock, $} = await setup(t, {state});
+  assert.equal($('.notification-count').textContent, '1');
+  assert.equal($('.open-rating-count').textContent, '(1)');
+  assert.equal($('.rated-count').textContent, '(1)');
+  $('.notification-bell').click();
+  const form = $('.open-rating-list form');
+  form.querySelector('textarea').value = 'Super';
+  form.dispatchEvent(new window.Event('submit', {bubbles: true, cancelable: true}));
+  await clock.tickAsync(1);
+  assert.equal($('.open-rating-list form'), null);
+  assert.equal($('.rated-count').textContent, '(2)');
+  assert.equal($('.notification-count').hidden, true);
+  assert.match($('.rated-list').textContent, /5\/5 Sterne · Super/);
+});
+
+test('rating drafts and focus survive polling and invitation popup expiry', async t => {
+  const state = ratingState(); state.pending = true;
+  const {window, clock, $} = await setup(t, {state});
+  $('.notification-bell').click();
+  const comment = $('.open-rating-list textarea');
+  comment.value = 'Mein Entwurf'; comment.focus();
+  await clock.tickAsync(31000);
+  assert.equal($('.open-rating-list textarea'), comment);
+  assert.equal(comment.value, 'Mein Entwurf');
+  assert.equal(window.document.activeElement, comment);
+});
+
+test('low rating requires comment and network failure preserves the rating draft', async t => {
+  const state = ratingState();
+  const {window, clock, $} = await setup(t, {state});
+  const form = $('.open-rating-list form');
+  form.querySelector('select').value = '2';
+  form.querySelector('select').dispatchEvent(new window.Event('change'));
+  assert.equal(form.querySelector('textarea').required, true);
+  form.dispatchEvent(new window.Event('submit', {bubbles: true, cancelable: true}));
+  assert.match(form.querySelector('[role=alert]').textContent, /Kommentar/);
+  assert.equal(state.ratings.open.length, 1);
+  form.querySelector('textarea').value = 'Zu laut';
+  state.fail = true;
+  form.dispatchEvent(new window.Event('submit', {bubbles: true, cancelable: true}));
+  await clock.tickAsync(1);
+  assert.match(form.querySelector('[role=alert]').textContent, /erneut versuchen/);
+  assert.equal(form.querySelector('textarea').value, 'Zu laut');
+  assert.equal(form.querySelector('button').disabled, false);
+  state.fail = false;
+  form.dispatchEvent(new window.Event('submit', {bubbles: true, cancelable: true}));
+  await clock.tickAsync(1);
+  assert.equal(state.ratings.open.length, 0);
 });

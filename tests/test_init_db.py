@@ -90,6 +90,9 @@ def test_delete_chat_subject_data_clears_matching_subjects():
     deleted = {}
 
     class FakeCollection:
+        def distinct(self, field, filt):
+            return []
+
         def find(self, filt):
             return []
 
