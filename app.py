@@ -671,17 +671,16 @@ def _rating_history(db, query):
 
 
 def _delete_chat_room_if_empty(db, subject):
-    """Raum (Stunde vorbei + alle weg, oder 0 Mitglieder) komplett aufraeumen."""
+    """Leeren Raum aufräumen; Bewertungen und Meldungen bleiben erhalten."""
     if db.chat_presence.count_documents({"subject": subject}) == 0:
         _archive_chat_ratings(db, {"subject": subject})
         db.chat_messages.delete_many({"subject": subject})
         db.chat_appointments.delete_one({"_id": subject})
         db.chat_ratings.delete_many({"subject": subject})
-        db.chat_message_reports.delete_many({"subject": subject})
 
 
 def delete_chat_subject_data(db, subject=None):
-    """Löscht flüchtige Chat-Daten; der Bewertungsverlauf bleibt erhalten."""
+    """Löscht flüchtige Chat-Daten; Bewertungen und Meldungen bleiben erhalten."""
     if subject is None:
         subject_filter = {}
         room_filter = {}
@@ -694,7 +693,6 @@ def delete_chat_subject_data(db, subject=None):
     db.chat_messages.delete_many(subject_filter)
     db.chat_appointments.delete_many(room_filter)
     db.chat_ratings.delete_many(subject_filter)
-    db.chat_message_reports.delete_many(subject_filter)
 
 
 def _user_may_access_chat_room(db, user_id, room_key):
